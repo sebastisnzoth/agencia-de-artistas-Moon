@@ -164,10 +164,18 @@ Implementado en `main`:
 - contactos CRM;
 - oportunidades con creación automática de Lead;
 - pipeline de Lead auditado;
+- Opportunity Scout con ingestión por lotes;
+- deduplicación estable por artista, fuente y referencia externa;
+- creación/reutilización de contacto desde Scout;
+- AgentRun estandarizado para ejecuciones de Scout;
 - Conversation como entidad persistente del flujo comercial;
 - drafts de email que crean/relacionan Conversation;
 - ingestión inbound que cambia Conversation a `REPLIED`;
 - envío outbound que cambia Conversation a `WAITING_FOR_REPLY`;
+- clasificación automática de replies comerciales en español/portugués/inglés;
+- actualización automática de Opportunity, Lead y próximo paso según intención detectada;
+- generación contextual de propuesta comercial;
+- toda propuesta generada automáticamente queda detrás de aprobación explícita antes del envío;
 - propuestas y aprobaciones;
 - Deal;
 - Event/Calendar;
@@ -175,15 +183,15 @@ Implementado en `main`:
 - Gmail y Google Calendar connectors;
 - permisos de tools A0/A1/A2/A3;
 - auditoría;
-- smoke test del flujo P0;
+- smoke test del flujo P0 incluyendo Scout, dedupe, Conversation, clasificación y propuesta generada;
 - CI con Prisma validate, lint, typecheck y build.
 
 Próximo cuello de botella P0:
 
-1. Opportunity Scout con ingestión/deduplicación automática.
-2. Clasificación de replies y recomendación de siguiente acción comercial.
-3. Generación de pitch/propuesta a partir del contexto del artista y oportunidad.
-4. Ejecutar el flujo con una oportunidad real y medir tiempo a primera conversión.
+1. Pricing guardrails persistentes por artista/workspace y validación antes de cotizar.
+2. Automatizar priorización diaria de tareas/oportunidades a partir de score, replies y deadlines.
+3. Conectar una base de datos y credenciales de producción para ejecutar el smoke/flujo contra infraestructura real.
+4. Ejecutar el flujo con una oportunidad y prospecto reales y medir tiempo a primera conversión.
 
 ## Métrica de progreso
 
@@ -199,4 +207,4 @@ Definición recomendada:
 - 80–95%: calendar + follow-up + hardening.
 - 95–100%: prueba real con oportunidad y cliente.
 
-Estimación técnica actual: **~88% del flujo P0 ejecutable**, todavía sin contar una validación real con prospecto/cliente externo.
+Estimación técnica actual: **~92% del flujo P0 ejecutable**. El principal faltante ya no es estructura CRUD sino validación real, pricing guardrails persistentes y operación contra infraestructura/cuentas reales.
