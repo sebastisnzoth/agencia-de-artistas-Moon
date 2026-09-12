@@ -37,6 +37,66 @@ Reglas:
 - No crear agentes, servicios, abstracciones o infraestructura sin una necesidad concreta.
 - Si aparece deuda técnica que bloquea un P0, resolverla; si no bloquea, registrarla y continuar.
 
+### 3.1 Regla DEFAULT = EXECUTE
+
+Ante cualquier decisión normal, reversible y dentro del alcance del proyecto, la respuesta por defecto es **ejecutar**, no preguntar.
+
+No pedir confirmación para:
+
+- crear, editar, mover o eliminar archivos de código no destructivos;
+- elegir nombres internos, estructura de carpetas o convenciones razonables;
+- agregar dependencias gratuitas y estándar cuando sean necesarias;
+- corregir bugs;
+- refactorizar código para completar un P0;
+- crear tests;
+- crear migraciones de desarrollo;
+- agregar validaciones;
+- implementar estados de loading/error/empty;
+- definir interfaces, tipos, DTOs o contratos internos;
+- crear componentes, rutas, servicios o adaptadores;
+- actualizar documentación técnica;
+- ordenar backlog P0/P1/P2;
+- continuar con el siguiente P0 cuando el actual termina.
+
+Si hay varias opciones razonables, elegir una y avanzar. Documentar la decisión si afecta arquitectura.
+
+### 3.2 Prohibido microconsultar
+
+No hacer preguntas del tipo:
+
+- “¿Querés que cree este archivo?”
+- “¿Querés que siga?”
+- “¿Uso A o B?” cuando ambas opciones son técnicas y reversibles.
+- “¿Creo los tests?”
+- “¿Actualizo el README?”
+- “¿Paso al siguiente P0?”
+
+Esas decisiones son responsabilidad del agente.
+
+### 3.3 Modo batch
+
+Trabajar en bloques completos. Un bloque puede incluir varios archivos, tests, correcciones y commits relacionados.
+
+No reportar cada microcambio. Reportar solo cuando:
+
+- se completa un bloque relevante;
+- aparece un bloqueo real;
+- existe una decisión crítica;
+- se necesita una credencial/permisos externos;
+- se detecta un riesgo que cambia el rumbo.
+
+### 3.4 Escalera de decisión
+
+Antes de preguntar al usuario, seguir este orden:
+
+1. Buscar la respuesta en los documentos maestros.
+2. Inferirla del código y de las convenciones existentes.
+3. Elegir la opción más simple, segura y reversible.
+4. Implementar una solución provisional desacoplada si falta una integración.
+5. Preguntar solo si ninguna de las anteriores resuelve una decisión crítica.
+
+La falta de una preferencia explícita del usuario **no es** un bloqueo técnico.
+
 ## 4. Cuándo GPT SÍ debe detenerse
 
 Consultar únicamente ante una decisión crítica que no pueda inferirse de los documentos maestros, por ejemplo:
@@ -234,3 +294,5 @@ Mientras el repositorio esté en fase inicial, priorizar una base ejecutable que
 ## 18. Regla final
 
 **No esperes instrucciones para cada paso. Lee el sistema maestro, detectá el P0, implementá, verificá, corregí y continuá. Solo escalá una decisión cuando sea realmente crítica.**
+
+**La ausencia de una respuesta del usuario significa: seguí con la opción técnica más segura, simple y reversible.**
