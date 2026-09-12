@@ -47,36 +47,51 @@ const artist = await call("/api/artists", {
   }),
 }, headers);
 
-const contact = await call("/api/contacts", {
-  method: "POST",
-  body: body({
+const scoutCandidate = {
+  source: "p0-smoke-scout",
+  sourceKey: `venue-show-${stamp}`,
+  sourceUrl: `https://example.com/opportunities/${stamp}`,
+  title: `Live show ${stamp}`,
+  description: "Paid live performance opportunity",
+  score: 90,
+  valueCents: 150000,
+  currency: "USD",
+  contact: {
     name: "Venue Buyer",
     email: `buyer-${stamp}@example.com`,
     organization: "Smoke Venue",
     kind: "venue",
-  }),
-}, headers);
+  },
+};
 
-const opportunity = await call("/api/opportunities", {
+const scout = await call("/api/scout/opportunities", {
   method: "POST",
-  body: body({
-    artistId: artist.id,
-    contactId: contact.id,
-    title: `Live show ${stamp}`,
-    source: "p0-smoke",
-    score: 90,
-    valueCents: 150000,
-    currency: "USD",
-  }),
+  body: body({ artistId: artist.id, candidates: [scoutCandidate] }),
 }, headers);
 
-const leadId = opportunity.leadId;
-if (!leadId) throw new Error("Opportunity must auto-create lead");
+if (scout.metrics.created !== 1 || scout.metrics.duplicates !== 0) {
+  throw new Error(`Scout must create first candidate: ${JSON.stringify(scout.metrics)}`);
+}
 
-await call(`/api/leads/${leadId}`, {
-  method: "PATCH",
-  body: body({ status: "QUALIFIED" }),
+const duplicateScout = await call("/api/scout/opportunities", {
+  method: "POST",
+  body: body({ artistId: artist.id, candidates: [scoutCandidate] }),
 }, headers);
+
+if (duplicateScout.metrics.created !== 0 || duplicateScout.metrics.duplicates !== 1) {
+  throw new Error(`Scout must deduplicate repeated candidate: ${JSON.stringify(duplicateScout.metrics)}`);
+}
+
+const opportunityId = scout.evidence.created[0]?.opportunityId;
+const leadId = scout.evidence.created[0]?.leadId;
+if (!opportunityId || !leadId) throw new Error("Scout must create opportunity and lead");
+
+const opportunities = await call("/api/opportunities", {}, headers);
+const opportunity = opportunities.find((item) => item.id === opportunityId);
+if (!opportunity?.contact?.id || !opportunity.contact.email) {
+  throw new Error("Scout opportunity must link prospect contact");
+}
+const contact = opportunity.contact;
 
 await call(`/api/leads/${leadId}`, {
   method: "PATCH",
@@ -91,7 +106,7 @@ await call(`/api/leads/${leadId}`, {
 const draft = await call("/api/email/drafts", {
   method: "POST",
   body: body({
-    opportunityId: opportunity.id,
+    opportunityId,
     contactId: contact.id,
     toAddresses: [contact.email],
     subject: "Booking inquiry",
@@ -129,18 +144,27 @@ const inbound = await call("/api/email/ingest", {
     provider: "gmail",
     threadExternalId: `thread-${stamp}`,
     messageExternalId: `reply-${stamp}`,
-    opportunityId: opportunity.id,
+    opportunityId,
     contactId: contact.id,
     fromAddress: contact.email,
     toAddresses: [bootstrap.user.email],
     subject: "Re: Booking inquiry",
-    bodyText: "Thanks, please send the proposal.",
+    bodyText: "Nos interesa. ¿Cuál es el precio? Mandame el presupuesto para avanzar.",
   }),
 }, headers);
 
 if (!inbound.conversationId) throw new Error("Inbound reply must attach to a conversation");
 
-const conversations = await call(`/api/conversations?opportunityId=${opportunity.id}`, {}, headers);
+const classification = await call(`/api/conversations/${inbound.conversationId}/classify`, {
+  method: "POST",
+  body: body({}),
+}, headers);
+
+if (classification.classification.intent !== "PRICING") {
+  throw new Error(`Expected PRICING reply classification, got ${JSON.stringify(classification)}`);
+}
+
+const conversations = await call(`/api/conversations?opportunityId=${opportunityId}`, {}, headers);
 const conversation = conversations.find((item) => item.id === inbound.conversationId);
 if (!conversation || conversation.status !== "REPLIED") {
   throw new Error(`Expected REPLIED conversation, got ${JSON.stringify(conversation)}`);
@@ -149,7 +173,7 @@ if (!conversation || conversation.status !== "REPLIED") {
 const proposalResult = await call("/api/proposals", {
   method: "POST",
   body: body({
-    opportunityId: opportunity.id,
+    opportunityId,
     title: "Live performance proposal",
     summary: "P0 smoke proposal",
     amountCents: 150000,
@@ -196,9 +220,11 @@ console.log(JSON.stringify({
   ok: true,
   workspaceId: bootstrap.workspace.id,
   artistId: artist.id,
-  opportunityId: opportunity.id,
+  scoutRunId: scout.runId,
+  opportunityId,
   leadId,
   conversationId: conversation.id,
+  classificationRunId: classification.runId,
   proposalId: proposalResult.proposal.id,
   dealId: deal.id,
   eventId: event.id,
