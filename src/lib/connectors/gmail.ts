@@ -93,10 +93,14 @@ export class GmailConnector implements EmailConnector {
 
   async sendDraft(externalMessageId: string) {
     const gmail = await this.api();
-    await gmail.users.drafts.send({
+    const response = await gmail.users.drafts.send({
       userId: "me",
       requestBody: { id: externalMessageId },
     });
-    return { sentAt: new Date() };
+    return {
+      sentAt: new Date(),
+      externalMessageId: response.data.id ?? undefined,
+      threadExternalId: response.data.threadId ?? undefined,
+    };
   }
 }
