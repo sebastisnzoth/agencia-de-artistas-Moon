@@ -1,0 +1,156 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum OpportunityStatus {
+  NEW
+  QUALIFIED
+  CONTACTED
+  NEGOTIATING
+  PROPOSAL
+  WON
+  LOST
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+model Workspace {
+  id            String         @id @default(cuid())
+  name          String
+  slug          String         @unique
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  memberships   Membership[]
+  artists       Artist[]
+  contacts      Contact[]
+  opportunities Opportunity[]
+  approvals     Approval[]
+  auditEvents   AuditEvent[]
+}
+
+model User {
+  id          String       @id @default(cuid())
+  email       String       @unique
+  name        String?
+  createdAt   DateTime     @default(now())
+  memberships Membership[]
+}
+
+model Membership {
+  id          String         @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        MembershipRole @default(MEMBER)
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model Artist {
+  id          String        @id @default(cuid())
+  workspaceId String
+  stageName   String
+  legalName   String?
+  bio         String?
+  genres      String[]
+  languages   String[]
+  territories String[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  opportunities Opportunity[]
+
+  @@index([workspaceId])
+}
+
+model Contact {
+  id            String        @id @default(cuid())
+  workspaceId   String
+  name          String
+  email         String?
+  organization  String?
+  kind          String?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  opportunities Opportunity[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, email])
+}
+
+model Opportunity {
+  id          String            @id @default(cuid())
+  workspaceId String
+  artistId    String
+  contactId   String?
+  title       String
+  source      String?
+  description String?
+  score       Int?
+  status      OpportunityStatus @default(NEW)
+  valueCents  Int?
+  currency    String?           @default("USD")
+  nextAction  String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  artist      Artist            @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  contact     Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  approvals   Approval[]
+
+  @@index([workspaceId, status])
+  @@index([artistId])
+}
+
+model Approval {
+  id            String         @id @default(cuid())
+  workspaceId   String
+  opportunityId String?
+  actionType    String
+  summary       String
+  payload       Json?
+  status        ApprovalStatus @default(PENDING)
+  requestedAt   DateTime       @default(now())
+  resolvedAt    DateTime?
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  opportunity   Opportunity?   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status])
+}
+
+model AuditEvent {
+  id          String    @id @default(cuid())
+  workspaceId String
+  actorType   String
+  actorId     String?
+  action      String
+  entityType  String?
+  entityId    String?
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([entityType, entityId])
+}
