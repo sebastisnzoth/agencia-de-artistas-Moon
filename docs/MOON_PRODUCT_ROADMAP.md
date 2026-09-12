@@ -175,7 +175,12 @@ Implementado en `main`:
 - clasificación automática de replies comerciales en español/portugués/inglés;
 - actualización automática de Opportunity, Lead y próximo paso según intención detectada;
 - generación contextual de propuesta comercial;
-- toda propuesta generada automáticamente queda detrás de aprobación explícita antes del envío;
+- PricingPolicy persistente por artista/moneda con mínimo, target, banda autónoma y máximo;
+- evaluación A1/A2 de pricing antes de generar propuesta;
+- excepciones de precio elevadas explícitamente a aprobación;
+- toda propuesta generada automáticamente queda detrás de aprobación antes del envío;
+- priorización diaria automática del General Manager sobre tareas, oportunidades y conversaciones;
+- scoring de prioridad por reply, negociación, deadlines, follow-up y score comercial;
 - propuestas y aprobaciones;
 - Deal;
 - Event/Calendar;
@@ -183,15 +188,49 @@ Implementado en `main`:
 - Gmail y Google Calendar connectors;
 - permisos de tools A0/A1/A2/A3;
 - auditoría;
-- smoke test del flujo P0 incluyendo Scout, dedupe, Conversation, clasificación y propuesta generada;
+- smoke test del flujo P0 incluyendo Scout, dedupe, Conversation, clasificación, pricing guardrails, prioridades y propuesta generada;
 - CI con Prisma validate, lint, typecheck y build.
 
-Próximo cuello de botella P0:
+## Camino restante P0
 
-1. Pricing guardrails persistentes por artista/workspace y validación antes de cotizar.
-2. Automatizar priorización diaria de tareas/oportunidades a partir de score, replies y deadlines.
-3. Conectar una base de datos y credenciales de producción para ejecutar el smoke/flujo contra infraestructura real.
-4. Ejecutar el flujo con una oportunidad y prospecto reales y medir tiempo a primera conversión.
+El foco deja de ser agregar estructura y pasa a validación operacional real.
+
+1. **Infraestructura de producción**
+   - base PostgreSQL persistente;
+   - variables de entorno y secretos fuera del repo;
+   - OAuth Google configurado en dominio real;
+   - migración/esquema aplicado de forma reproducible;
+   - observabilidad mínima de errores y AgentRun.
+
+2. **Artist Workspace completo para primera validación**
+   - cargar pricing policy real del artista piloto;
+   - restricciones comerciales;
+   - disponibilidad real;
+   - EPK/assets esenciales;
+   - objetivos comerciales activos.
+
+3. **Primera campaña comercial controlada**
+   - cargar o descubrir prospectos reales;
+   - priorizar con MOON General Manager;
+   - preparar pitch;
+   - enviar únicamente dentro de la política de autonomía vigente;
+   - registrar reply/follow-up/propuesta.
+
+4. **Cerrar primera oportunidad real**
+   - propuesta;
+   - aprobación;
+   - acuerdo;
+   - evento/calendario;
+   - seguimiento posterior.
+
+5. **Medir validación**
+   - tiempo a primera oportunidad;
+   - tiempo a primera respuesta;
+   - propuestas enviadas;
+   - tasa de respuesta;
+   - ingreso cerrado;
+   - intervenciones humanas necesarias;
+   - errores por agente.
 
 ## Métrica de progreso
 
@@ -207,4 +246,4 @@ Definición recomendada:
 - 80–95%: calendar + follow-up + hardening.
 - 95–100%: prueba real con oportunidad y cliente.
 
-Estimación técnica actual: **~92% del flujo P0 ejecutable**. El principal faltante ya no es estructura CRUD sino validación real, pricing guardrails persistentes y operación contra infraestructura/cuentas reales.
+Estimación técnica actual: **~94% del flujo P0 ejecutable**. El principal bloqueo restante es operacional: infraestructura/cuentas reales, configuración comercial real del artista y ejecución con un prospecto externo medible.
