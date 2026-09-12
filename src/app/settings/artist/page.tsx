@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 
 type Artist = {
   id: string;
@@ -30,16 +31,16 @@ export default function ArtistSettingsPage() {
   const [policies, setPolicies] = useState<PricingPolicy[]>([]);
   const [message, setMessage] = useState("");
 
-  async function refreshArtists() {
+  const refreshArtists = useCallback(async () => {
     const response = await fetch("/api/artists", { cache: "no-store" });
     if (!response.ok) return;
     const payload = await response.json();
-    const list = payload.data ?? [];
+    const list: Artist[] = payload.data ?? [];
     setArtists(list);
-    if (!selectedArtistId && list[0]?.id) setSelectedArtistId(list[0].id);
-  }
+    setSelectedArtistId((current) => current || list[0]?.id || "");
+  }, []);
 
-  async function refreshPricing(artistId: string) {
+  const refreshPricing = useCallback(async (artistId: string) => {
     if (!artistId) {
       setPolicies([]);
       return;
@@ -48,15 +49,15 @@ export default function ArtistSettingsPage() {
     if (!response.ok) return;
     const payload = await response.json();
     setPolicies(payload.data ?? []);
-  }
-
-  useEffect(() => {
-    void refreshArtists();
   }, []);
 
   useEffect(() => {
+    void refreshArtists();
+  }, [refreshArtists]);
+
+  useEffect(() => {
     void refreshPricing(selectedArtistId);
-  }, [selectedArtistId]);
+  }, [refreshPricing, selectedArtistId]);
 
   async function createArtist(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -122,8 +123,8 @@ export default function ArtistSettingsPage() {
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: "48px 24px", fontFamily: "system-ui" }}>
       <nav style={{ display: "flex", gap: 14 }}>
-        <a href="/dashboard">← Dashboard</a>
-        <a href="/settings/integrations">Integraciones</a>
+        <Link href="/dashboard">← Dashboard</Link>
+        <Link href="/settings/integrations">Integraciones</Link>
       </nav>
       <h1>Artist Workspace</h1>
       <p>Configuración mínima para que MOON pueda buscar, priorizar y cotizar sin salir de los límites del artista.</p>
