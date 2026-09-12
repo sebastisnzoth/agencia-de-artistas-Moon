@@ -1,4 +1,4 @@
-import { OpportunityStatus, ProposalStatus } from "@prisma/client";
+import { OpportunityStatus, Prisma, ProposalStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -55,7 +55,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Opportunity not found" }, { status: 404 });
     }
 
-    if ([OpportunityStatus.WON, OpportunityStatus.LOST].includes(opportunity.status)) {
+    const isTerminal =
+      opportunity.status === OpportunityStatus.WON ||
+      opportunity.status === OpportunityStatus.LOST;
+
+    if (isTerminal) {
       return NextResponse.json(
         { error: `Cannot create a proposal for ${opportunity.status.toLowerCase()} opportunity` },
         { status: 409 },
@@ -77,7 +81,7 @@ export async function POST(request: Request) {
           version,
           title: input.title,
           summary: input.summary,
-          terms: input.terms,
+          terms: input.terms as Prisma.InputJsonValue | undefined,
           amountCents: input.amountCents,
           currency: input.currency,
           validUntil: input.validUntil ? new Date(input.validUntil) : undefined,
