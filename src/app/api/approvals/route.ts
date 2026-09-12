@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -78,7 +79,7 @@ export async function POST(request: Request) {
           proposalId: input.proposalId,
           actionType: input.actionType,
           summary: input.summary,
-          payload: input.payload,
+          payload: input.payload as Prisma.InputJsonValue | undefined,
         },
       });
 
