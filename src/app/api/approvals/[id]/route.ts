@@ -6,7 +6,10 @@ import { apiError } from "@/lib/http";
 import { requireWorkspaceContext } from "@/lib/workspace";
 
 const resolveSchema = z.object({
-  status: z.enum([ApprovalStatus.APPROVED, ApprovalStatus.REJECTED]),
+  status: z.union([
+    z.literal(ApprovalStatus.APPROVED),
+    z.literal(ApprovalStatus.REJECTED),
+  ]),
 });
 
 export async function PATCH(
