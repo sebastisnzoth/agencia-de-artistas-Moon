@@ -212,6 +212,8 @@ model Opportunity {
   contactId     String?
   title         String
   source        String?
+  sourceUrl     String?
+  dedupeKey     String?
   description   String?
   score         Int?
   status        OpportunityStatus @default(NEW)
@@ -231,6 +233,7 @@ model Opportunity {
   emailThreads  EmailThread[]
   tasks         Task[]
 
+  @@unique([workspaceId, artistId, dedupeKey])
   @@index([workspaceId, status])
   @@index([artistId])
 }
