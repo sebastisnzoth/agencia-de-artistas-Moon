@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type Me = {
@@ -128,9 +129,9 @@ export default function DashboardPage() {
           <p style={{ opacity: 0.7, marginTop: 0 }}>{me.name ?? me.email}</p>
         </div>
         <nav style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <a href="/settings/artist">Artista y precios</a>
-          <a href="/settings/integrations">Integraciones</a>
-          <a href="/">Inicio</a>
+          <Link href="/settings/artist">Artista y precios</Link>
+          <Link href="/settings/integrations">Integraciones</Link>
+          <Link href="/">Inicio</Link>
         </nav>
       </div>
 
