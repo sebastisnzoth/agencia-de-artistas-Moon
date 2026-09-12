@@ -1,4 +1,8 @@
-import { MessageDirection, MessageStatus } from "@prisma/client";
+import {
+  ConversationStatus,
+  MessageDirection,
+  MessageStatus,
+} from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -24,7 +28,7 @@ export async function POST(request: Request) {
       input.opportunityId
         ? db.opportunity.findFirst({
             where: { id: input.opportunityId, workspaceId: ctx.workspaceId },
-            select: { id: true },
+            select: { id: true, artistId: true, contactId: true },
           })
         : Promise.resolve(null),
       input.contactId
@@ -36,7 +40,7 @@ export async function POST(request: Request) {
       input.threadId
         ? db.emailThread.findFirst({
             where: { id: input.threadId, workspaceId: ctx.workspaceId },
-            select: { id: true },
+            select: { id: true, conversationId: true, opportunityId: true, contactId: true },
           })
         : Promise.resolve(null),
     ]);
@@ -52,13 +56,42 @@ export async function POST(request: Request) {
     }
 
     const result = await db.$transaction(async (tx) => {
+      let conversationId = existingThread?.conversationId ?? undefined;
+
+      if (!conversationId && opportunity) {
+        const effectiveContactId = input.contactId ?? opportunity.contactId ?? undefined;
+        const conversation = await tx.conversation.create({
+          data: {
+            workspaceId: ctx.workspaceId,
+            artistId: opportunity.artistId,
+            opportunityId: opportunity.id,
+            contactId: effectiveContactId,
+            channel: "email",
+            subject: input.subject,
+            status: ConversationStatus.OPEN,
+            lastMessageAt: new Date(),
+          },
+        });
+        conversationId = conversation.id;
+      }
+
       const thread = existingThread
-        ? await tx.emailThread.findUniqueOrThrow({ where: { id: existingThread.id } })
+        ? await tx.emailThread.update({
+            where: { id: existingThread.id },
+            data: {
+              conversationId,
+              opportunityId: input.opportunityId ?? existingThread.opportunityId,
+              contactId: input.contactId ?? existingThread.contactId,
+              subject: input.subject,
+              lastMessageAt: new Date(),
+            },
+          })
         : await tx.emailThread.create({
             data: {
               workspaceId: ctx.workspaceId,
               opportunityId: input.opportunityId,
               contactId: input.contactId,
+              conversationId,
               provider: input.provider,
               externalId: `draft-${crypto.randomUUID()}`,
               subject: input.subject,
@@ -77,11 +110,6 @@ export async function POST(request: Request) {
         },
       });
 
-      await tx.emailThread.update({
-        where: { id: thread.id },
-        data: { lastMessageAt: new Date(), subject: input.subject },
-      });
-
       await tx.auditEvent.create({
         data: {
           workspaceId: ctx.workspaceId,
@@ -92,13 +120,14 @@ export async function POST(request: Request) {
           entityId: message.id,
           metadata: {
             threadId: thread.id,
+            conversationId,
             opportunityId: input.opportunityId,
             contactId: input.contactId,
           },
         },
       });
 
-      return { thread, message };
+      return { thread, message, conversationId };
     });
 
     return NextResponse.json({ data: result }, { status: 201 });
