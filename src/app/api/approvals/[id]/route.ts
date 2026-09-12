@@ -1,4 +1,8 @@
-import { ApprovalStatus, ProposalStatus } from "@prisma/client";
+import {
+  ApprovalStatus,
+  MessageStatus,
+  ProposalStatus,
+} from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -11,6 +15,12 @@ const resolveSchema = z.object({
     z.literal(ApprovalStatus.REJECTED),
   ]),
 });
+
+function getPayloadString(payload: unknown, key: string) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return undefined;
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : undefined;
+}
 
 export async function PATCH(
   request: Request,
@@ -53,6 +63,51 @@ export async function PATCH(
               input.status === ApprovalStatus.APPROVED
                 ? ProposalStatus.APPROVED
                 : ProposalStatus.DRAFT,
+          },
+        });
+      }
+
+      if (
+        approval.actionType === "email.send" &&
+        input.status === ApprovalStatus.APPROVED
+      ) {
+        const messageId = getPayloadString(approval.payload, "messageId");
+
+        if (!messageId) {
+          throw new Error("Approved email.send action is missing messageId");
+        }
+
+        const message = await tx.emailMessage.findFirst({
+          where: {
+            id: messageId,
+            thread: { workspaceId: ctx.workspaceId },
+          },
+        });
+
+        if (!message) {
+          throw new Error("Approved email message no longer exists");
+        }
+
+        if (message.status !== MessageStatus.DRAFT) {
+          throw new Error(
+            `Approved email cannot be queued from status ${message.status}`,
+          );
+        }
+
+        await tx.emailMessage.update({
+          where: { id: message.id },
+          data: { status: MessageStatus.QUEUED },
+        });
+
+        await tx.auditEvent.create({
+          data: {
+            workspaceId: ctx.workspaceId,
+            actorType: "USER",
+            actorId: ctx.userId,
+            action: "email.queued_after_approval",
+            entityType: "EmailMessage",
+            entityId: message.id,
+            metadata: { approvalId: approval.id },
           },
         });
       }
