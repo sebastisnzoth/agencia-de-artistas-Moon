@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type GoogleStatus = {
@@ -73,7 +74,7 @@ export default function IntegrationsPage() {
 
   return (
     <main style={{ maxWidth: 860, margin: "0 auto", padding: "48px 24px", fontFamily: "system-ui" }}>
-      <a href="/" style={{ color: "inherit" }}>← MOON</a>
+      <Link href="/" style={{ color: "inherit" }}>← MOON</Link>
       <h1>Integraciones</h1>
       <p>Google OAuth habilita identidad, Gmail y Calendar. Los permisos operativos siguen separados.</p>
 
