@@ -127,7 +127,8 @@ export default function DashboardPage() {
           <h1 style={{ marginBottom: 4 }}>Centro operativo</h1>
           <p style={{ opacity: 0.7, marginTop: 0 }}>{me.name ?? me.email}</p>
         </div>
-        <nav style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <nav style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <a href="/settings/artist">Artista y precios</a>
           <a href="/settings/integrations">Integraciones</a>
           <a href="/">Inicio</a>
         </nav>
