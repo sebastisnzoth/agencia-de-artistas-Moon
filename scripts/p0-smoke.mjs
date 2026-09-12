@@ -70,30 +70,81 @@ const opportunity = await call("/api/opportunities", {
   }),
 }, headers);
 
-const lead = await call("/api/leads", {
-  method: "POST",
-  body: body({
-    opportunityId: opportunity.id,
-    contactId: contact.id,
-    score: 90,
-    nextAction: "Prepare first contact",
-  }),
-}, headers);
+const leadId = opportunity.leadId;
+if (!leadId) throw new Error("Opportunity must auto-create lead");
 
-await call(`/api/leads/${lead.id}`, {
+await call(`/api/leads/${leadId}`, {
   method: "PATCH",
   body: body({ status: "QUALIFIED" }),
 }, headers);
 
-await call(`/api/leads/${lead.id}`, {
+await call(`/api/leads/${leadId}`, {
   method: "PATCH",
   body: body({ status: "CONTACT_READY" }),
 }, headers);
 
-await call(`/api/leads/${lead.id}`, {
+await call(`/api/leads/${leadId}`, {
   method: "PATCH",
   body: body({ status: "CONTACTED", nextAction: "Continue conversation" }),
 }, headers);
+
+const draft = await call("/api/email/drafts", {
+  method: "POST",
+  body: body({
+    opportunityId: opportunity.id,
+    contactId: contact.id,
+    toAddresses: [contact.email],
+    subject: "Booking inquiry",
+    bodyText: "We would like to discuss a live performance booking.",
+  }),
+}, headers);
+
+if (!draft.conversationId) throw new Error("Outbound draft must create a conversation");
+
+const queued = await call(`/api/email/messages/${draft.message.id}/queue`, {
+  method: "POST",
+  body: body({ requestedLevel: "A1" }),
+}, headers);
+
+if (queued.status !== "QUEUED") {
+  throw new Error(`Expected queued email, got ${JSON.stringify(queued)}`);
+}
+
+const delivery = await call(`/api/email/messages/${draft.message.id}/delivery`, {
+  method: "POST",
+  body: body({
+    status: "SENT",
+    externalId: `smoke-message-${stamp}`,
+    followUpDays: 3,
+  }),
+}, headers);
+
+if (!delivery.followUpTaskId) {
+  throw new Error("Expected automatic follow-up task after sent email");
+}
+
+const inbound = await call("/api/email/ingest", {
+  method: "POST",
+  body: body({
+    provider: "gmail",
+    threadExternalId: `thread-${stamp}`,
+    messageExternalId: `reply-${stamp}`,
+    opportunityId: opportunity.id,
+    contactId: contact.id,
+    fromAddress: contact.email,
+    toAddresses: [bootstrap.user.email],
+    subject: "Re: Booking inquiry",
+    bodyText: "Thanks, please send the proposal.",
+  }),
+}, headers);
+
+if (!inbound.conversationId) throw new Error("Inbound reply must attach to a conversation");
+
+const conversations = await call(`/api/conversations?opportunityId=${opportunity.id}`, {}, headers);
+const conversation = conversations.find((item) => item.id === inbound.conversationId);
+if (!conversation || conversation.status !== "REPLIED") {
+  throw new Error(`Expected REPLIED conversation, got ${JSON.stringify(conversation)}`);
+}
 
 const proposalResult = await call("/api/proposals", {
   method: "POST",
@@ -141,45 +192,13 @@ const event = await call("/api/events", {
   }),
 }, headers);
 
-const draft = await call("/api/email/drafts", {
-  method: "POST",
-  body: body({
-    opportunityId: opportunity.id,
-    contactId: contact.id,
-    toAddresses: [contact.email],
-    subject: "Booking confirmation",
-    bodyText: "Thanks. We confirm the next steps for the booking.",
-  }),
-}, headers);
-
-const queued = await call(`/api/email/messages/${draft.message.id}/queue`, {
-  method: "POST",
-  body: body({ requestedLevel: "A1" }),
-}, headers);
-
-if (queued.status !== "QUEUED") {
-  throw new Error(`Expected queued email, got ${JSON.stringify(queued)}`);
-}
-
-const delivery = await call(`/api/email/messages/${draft.message.id}/delivery`, {
-  method: "POST",
-  body: body({
-    status: "SENT",
-    externalId: `smoke-message-${stamp}`,
-    followUpDays: 3,
-  }),
-}, headers);
-
-if (!delivery.followUpTaskId) {
-  throw new Error("Expected automatic follow-up task after sent email");
-}
-
 console.log(JSON.stringify({
   ok: true,
   workspaceId: bootstrap.workspace.id,
   artistId: artist.id,
   opportunityId: opportunity.id,
-  leadId: lead.id,
+  leadId,
+  conversationId: conversation.id,
   proposalId: proposalResult.proposal.id,
   dealId: deal.id,
   eventId: event.id,
