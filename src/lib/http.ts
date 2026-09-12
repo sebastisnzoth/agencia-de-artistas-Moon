@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { AuthenticationError } from "@/lib/auth";
+import { ToolPermissionError } from "@/lib/tool-policy";
 import { AuthorizationError } from "@/lib/workspace";
 
 export function apiError(error: unknown) {
@@ -8,7 +9,7 @@ export function apiError(error: unknown) {
     return NextResponse.json({ error: error.message }, { status: 401 });
   }
 
-  if (error instanceof AuthorizationError) {
+  if (error instanceof AuthorizationError || error instanceof ToolPermissionError) {
     return NextResponse.json({ error: error.message }, { status: 403 });
   }
 
