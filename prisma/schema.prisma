@@ -115,6 +115,7 @@ model Workspace {
   deals               Deal[]
   events              Event[]
   tasks               Task[]
+  pricingPolicies     PricingPolicy[]
   agentRuns           AgentRun[]
   toolPermissions     ToolPermission[]
   emailThreads        EmailThread[]
@@ -163,24 +164,25 @@ model IntegrationAccount {
 }
 
 model Artist {
-  id            String        @id @default(cuid())
-  workspaceId   String
-  stageName     String
-  legalName     String?
-  bio           String?
-  genres        String[]
-  languages     String[]
-  territories   String[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  opportunities Opportunity[]
-  leads         Lead[]
-  conversations Conversation[]
-  proposals     Proposal[]
-  deals         Deal[]
-  events        Event[]
-  tasks         Task[]
+  id              String          @id @default(cuid())
+  workspaceId     String
+  stageName       String
+  legalName       String?
+  bio             String?
+  genres          String[]
+  languages       String[]
+  territories     String[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  opportunities   Opportunity[]
+  leads           Lead[]
+  conversations   Conversation[]
+  proposals       Proposal[]
+  deals           Deal[]
+  events          Event[]
+  tasks           Task[]
+  pricingPolicies PricingPolicy[]
 
   @@index([workspaceId])
 }
@@ -212,8 +214,8 @@ model Opportunity {
   contactId     String?
   title         String
   source        String?
+  sourceKey     String?
   sourceUrl     String?
-  dedupeKey     String?
   description   String?
   score         Int?
   status        OpportunityStatus @default(NEW)
@@ -233,9 +235,10 @@ model Opportunity {
   emailThreads  EmailThread[]
   tasks         Task[]
 
-  @@unique([workspaceId, artistId, dedupeKey])
   @@index([workspaceId, status])
   @@index([artistId])
+  @@index([workspaceId, artistId, source, sourceKey])
+  @@index([workspaceId, artistId, sourceUrl])
 }
 
 model Lead {
@@ -389,6 +392,28 @@ model Task {
 
   @@index([workspaceId, status, dueAt])
   @@index([opportunityId])
+}
+
+model PricingPolicy {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  artistId         String
+  name             String    @default("default")
+  currency         String    @default("USD")
+  minimumCents     Int
+  targetCents      Int?
+  autonomousMinCents Int?
+  autonomousMaxCents Int?
+  maximumCents     Int?
+  active           Boolean   @default(true)
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  artist           Artist    @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@unique([artistId, name, currency])
+  @@index([workspaceId, artistId, active])
 }
 
 model AgentRun {
