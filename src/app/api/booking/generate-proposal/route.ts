@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { apiError } from "@/lib/http";
+import { evaluatePricing } from "@/lib/pricing";
 import { requireWorkspaceContext } from "@/lib/workspace";
 
 const schema = z.object({
@@ -28,7 +29,14 @@ export async function POST(request: Request) {
     const opportunity = await db.opportunity.findFirst({
       where: { id: input.opportunityId, workspaceId: ctx.workspaceId },
       include: {
-        artist: true,
+        artist: {
+          include: {
+            pricingPolicies: {
+              where: { active: true },
+              orderBy: { updatedAt: "desc" },
+            },
+          },
+        },
         contact: true,
         conversations: {
           orderBy: { lastMessageAt: "desc" },
@@ -46,6 +54,9 @@ export async function POST(request: Request) {
 
     const amountCents = input.amountCents ?? opportunity.valueCents ?? undefined;
     const currency = input.currency ?? opportunity.currency ?? "USD";
+    const policy = opportunity.artist.pricingPolicies.find((item) => item.currency === currency) ?? null;
+    const pricing = evaluatePricing(policy, amountCents, currency);
+
     const validUntil = new Date();
     validUntil.setUTCDate(validUntil.getUTCDate() + input.validDays);
 
@@ -77,11 +88,13 @@ export async function POST(request: Request) {
           taskType: "generate_booking_proposal",
           goal: "Generate a contextual commercial proposal without creating a binding commitment",
           status: AgentRunStatus.COMPLETED,
-          autonomyLevel: AutonomyLevel.A0,
+          autonomyLevel: pricing.level,
           input: {
             opportunityId: opportunity.id,
             requestedAmountCents: input.amountCents,
+            resolvedAmountCents: amountCents,
             currency,
+            pricingPolicyId: pricing.policyId,
           },
           startedAt: new Date(),
           completedAt: new Date(),
@@ -92,6 +105,7 @@ export async function POST(request: Request) {
         durationMinutes: input.durationMinutes ?? null,
         recipient,
         generatedFromConversationId: opportunity.conversations[0]?.id ?? null,
+        pricingGuardrail: pricing,
         commercialGuardrail: "proposal_requires_explicit_approval_before_send",
       };
 
@@ -116,13 +130,16 @@ export async function POST(request: Request) {
           workspaceId: ctx.workspaceId,
           opportunityId: opportunity.id,
           proposalId: proposal.id,
-          actionType: "proposal.send",
-          summary: `Approve generated proposal v${version}: ${proposal.title}`,
+          actionType: pricing.requiresExplicitApproval ? "proposal.pricing_exception_and_send" : "proposal.send",
+          summary: pricing.requiresExplicitApproval
+            ? `Review pricing guardrail (${pricing.reason}) and approve proposal v${version}: ${proposal.title}`
+            : `Approve generated proposal v${version}: ${proposal.title}`,
           payload: {
             amountCents,
             currency,
             validUntil: validUntil.toISOString(),
             generatedByAgentRunId: run.id,
+            pricing,
           },
         },
       });
@@ -131,25 +148,46 @@ export async function POST(request: Request) {
         where: { id: opportunity.id },
         data: {
           status: OpportunityStatus.PROPOSAL,
-          nextAction: "Review generated proposal and approve before sending",
+          nextAction: pricing.requiresExplicitApproval
+            ? `Review pricing exception (${pricing.reason}) and approve before sending`
+            : "Review generated proposal and approve before sending",
         },
       });
 
       const output = {
         status: "completed",
         summary: `Generated proposal v${version} for ${opportunity.title}`,
-        actions_taken: ["assembled_artist_context", "generated_pitch", "created_proposal", "requested_approval"],
-        evidence: { opportunityId: opportunity.id, proposalId: proposal.id },
+        actions_taken: [
+          "assembled_artist_context",
+          "evaluated_pricing_guardrail",
+          "generated_pitch",
+          "created_proposal",
+          "requested_approval",
+        ],
+        evidence: {
+          opportunityId: opportunity.id,
+          proposalId: proposal.id,
+          pricingPolicyId: pricing.policyId,
+          pricingDecision: pricing,
+        },
         artifacts: [{ type: "proposal", id: proposal.id }],
-        metrics: { version, amountCents: amountCents ?? null },
+        metrics: {
+          version,
+          amountCents: amountCents ?? null,
+          pricingLevel: pricing.level,
+          withinPolicy: pricing.withinPolicy,
+        },
         next_actions: [{ action: "review_approval", approvalId: approval.id }],
-        approvals_required: [{ approvalId: approval.id, actionType: "proposal.send" }],
+        approvals_required: [{ approvalId: approval.id, actionType: approval.actionType }],
         errors: [],
       };
 
       await tx.agentRun.update({
         where: { id: run.id },
-        data: { output },
+        data: {
+          output,
+          approvalsNeeded: output.approvals_required,
+        },
       });
 
       await tx.auditEvent.create({
@@ -165,11 +203,12 @@ export async function POST(request: Request) {
             approvalId: approval.id,
             amountCents,
             currency,
+            pricing,
           },
         },
       });
 
-      return { runId: run.id, proposal, approval, output };
+      return { runId: run.id, proposal, approval, pricing, output };
     });
 
     return NextResponse.json({ data: result }, { status: 201 });
