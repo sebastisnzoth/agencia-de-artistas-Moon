@@ -15,14 +15,24 @@ export class AuthorizationError extends Error {
   }
 }
 
+function cookieValue(request: Request, name: string) {
+  const header = request.headers.get("cookie") ?? "";
+  for (const item of header.split(";")) {
+    const [key, ...rest] = item.trim().split("=");
+    if (key === name) return decodeURIComponent(rest.join("="));
+  }
+  return undefined;
+}
+
 export async function requireWorkspaceContext(
   request: Request,
 ): Promise<WorkspaceContext> {
   const actor = await resolveRequestActor(request);
-  const workspaceId = request.headers.get("x-moon-workspace-id")?.trim();
+  const workspaceId =
+    request.headers.get("x-moon-workspace-id")?.trim() || cookieValue(request, "moon_workspace");
 
   if (!workspaceId) {
-    throw new AuthorizationError("Missing x-moon-workspace-id header");
+    throw new AuthorizationError("Missing workspace context");
   }
 
   const membership = await db.membership.findUnique({
