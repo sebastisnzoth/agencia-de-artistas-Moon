@@ -32,6 +32,13 @@ enum LeadStatus {
   DISQUALIFIED
 }
 
+enum ConversationStatus {
+  OPEN
+  WAITING_FOR_REPLY
+  REPLIED
+  CLOSED
+}
+
 enum ApprovalStatus {
   PENDING
   APPROVED
@@ -102,6 +109,7 @@ model Workspace {
   contacts            Contact[]
   opportunities       Opportunity[]
   leads               Lead[]
+  conversations       Conversation[]
   approvals           Approval[]
   proposals           Proposal[]
   deals               Deal[]
@@ -168,6 +176,7 @@ model Artist {
   workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   opportunities Opportunity[]
   leads         Lead[]
+  conversations Conversation[]
   proposals     Proposal[]
   deals         Deal[]
   events        Event[]
@@ -189,6 +198,7 @@ model Contact {
   workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   opportunities Opportunity[]
   leads         Lead[]
+  conversations Conversation[]
   emailThreads  EmailThread[]
 
   @@index([workspaceId])
@@ -196,55 +206,79 @@ model Contact {
 }
 
 model Opportunity {
-  id           String            @id @default(cuid())
-  workspaceId  String
-  artistId     String
-  contactId    String?
-  title        String
-  source       String?
-  description  String?
-  score        Int?
-  status       OpportunityStatus @default(NEW)
-  valueCents   Int?
-  currency     String?           @default("USD")
-  nextAction   String?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  workspace    Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  artist       Artist            @relation(fields: [artistId], references: [id], onDelete: Cascade)
-  contact      Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  leads        Lead[]
-  approvals    Approval[]
-  proposals    Proposal[]
-  deal         Deal?
-  emailThreads EmailThread[]
-  tasks        Task[]
+  id            String            @id @default(cuid())
+  workspaceId   String
+  artistId      String
+  contactId     String?
+  title         String
+  source        String?
+  description   String?
+  score         Int?
+  status        OpportunityStatus @default(NEW)
+  valueCents    Int?
+  currency      String?           @default("USD")
+  nextAction    String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  artist        Artist            @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  contact       Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  leads         Lead[]
+  conversations Conversation[]
+  approvals     Approval[]
+  proposals     Proposal[]
+  deal          Deal?
+  emailThreads  EmailThread[]
+  tasks         Task[]
 
   @@index([workspaceId, status])
   @@index([artistId])
 }
 
 model Lead {
-  id            String     @id @default(cuid())
+  id            String      @id @default(cuid())
   workspaceId   String
   artistId      String
   opportunityId String
   contactId     String?
-  status        LeadStatus @default(NEW)
+  status        LeadStatus  @default(NEW)
   source        String?
   score         Int?
   notes         String?
   nextAction    String?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  workspace     Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  artist        Artist     @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  artist        Artist      @relation(fields: [artistId], references: [id], onDelete: Cascade)
   opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
-  contact       Contact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  contact       Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
   @@unique([workspaceId, opportunityId])
   @@index([workspaceId, status])
   @@index([artistId, status])
+  @@index([contactId])
+}
+
+model Conversation {
+  id            String             @id @default(cuid())
+  workspaceId   String
+  artistId      String
+  opportunityId String
+  contactId     String?
+  channel       String             @default("email")
+  subject       String?
+  status        ConversationStatus @default(OPEN)
+  lastMessageAt DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  artist        Artist             @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  opportunity   Opportunity        @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  contact       Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  emailThreads  EmailThread[]
+
+  @@index([workspaceId, status, lastMessageAt])
+  @@index([opportunityId])
   @@index([contactId])
 }
 
@@ -392,23 +426,26 @@ model ToolPermission {
 }
 
 model EmailThread {
-  id            String         @id @default(cuid())
-  workspaceId   String
-  opportunityId String?
-  contactId     String?
-  provider      String
-  externalId    String
-  subject       String?
-  lastMessageAt DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  opportunity   Opportunity?   @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
-  contact       Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  messages      EmailMessage[]
+  id             String        @id @default(cuid())
+  workspaceId    String
+  opportunityId  String?
+  contactId      String?
+  conversationId String?
+  provider       String
+  externalId     String
+  subject        String?
+  lastMessageAt  DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  opportunity    Opportunity?  @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  contact        Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  messages       EmailMessage[]
 
   @@unique([workspaceId, provider, externalId])
   @@index([workspaceId, lastMessageAt])
+  @@index([conversationId])
 }
 
 model EmailMessage {
