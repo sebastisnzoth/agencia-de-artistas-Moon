@@ -1,7 +1,10 @@
 import {
   AutonomyLevel,
+  ConversationStatus,
+  LeadStatus,
   MessageDirection,
   MessageStatus,
+  OpportunityStatus,
 } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -39,7 +42,7 @@ export async function POST(request: Request) {
       input.opportunityId
         ? db.opportunity.findFirst({
             where: { id: input.opportunityId, workspaceId: ctx.workspaceId },
-            select: { id: true },
+            select: { id: true, artistId: true, status: true, contactId: true },
           })
         : Promise.resolve(null),
       input.contactId
@@ -58,7 +61,66 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Contact not found" }, { status: 404 });
     }
 
+    const receivedAt = input.receivedAt ?? new Date();
+
     const result = await db.$transaction(async (tx) => {
+      let conversationId: string | undefined;
+
+      if (opportunity) {
+        const effectiveContactId = input.contactId ?? opportunity.contactId ?? undefined;
+        const existingConversation = await tx.conversation.findFirst({
+          where: {
+            workspaceId: ctx.workspaceId,
+            opportunityId: opportunity.id,
+            channel: "email",
+            ...(effectiveContactId ? { contactId: effectiveContactId } : {}),
+            status: { not: ConversationStatus.CLOSED },
+          },
+          orderBy: { updatedAt: "desc" },
+        });
+
+        const conversation = existingConversation
+          ? await tx.conversation.update({
+              where: { id: existingConversation.id },
+              data: {
+                status: ConversationStatus.REPLIED,
+                subject: input.subject ?? existingConversation.subject,
+                lastMessageAt: receivedAt,
+                contactId: effectiveContactId ?? existingConversation.contactId,
+              },
+            })
+          : await tx.conversation.create({
+              data: {
+                workspaceId: ctx.workspaceId,
+                artistId: opportunity.artistId,
+                opportunityId: opportunity.id,
+                contactId: effectiveContactId,
+                channel: "email",
+                subject: input.subject,
+                status: ConversationStatus.REPLIED,
+                lastMessageAt: receivedAt,
+              },
+            });
+
+        conversationId = conversation.id;
+
+        await tx.opportunity.update({
+          where: { id: opportunity.id },
+          data: {
+            status:
+              opportunity.status === OpportunityStatus.NEW || opportunity.status === OpportunityStatus.QUALIFIED
+                ? OpportunityStatus.CONTACTED
+                : opportunity.status,
+            nextAction: "Review inbound reply and prepare next commercial action",
+          },
+        });
+
+        await tx.lead.updateMany({
+          where: { workspaceId: ctx.workspaceId, opportunityId: opportunity.id },
+          data: { status: LeadStatus.CONTACTED, nextAction: "Review inbound reply" },
+        });
+      }
+
       const thread = await tx.emailThread.upsert({
         where: {
           workspaceId_provider_externalId: {
@@ -70,17 +132,19 @@ export async function POST(request: Request) {
         update: {
           opportunityId: input.opportunityId,
           contactId: input.contactId,
+          conversationId,
           subject: input.subject,
-          lastMessageAt: input.receivedAt ?? new Date(),
+          lastMessageAt: receivedAt,
         },
         create: {
           workspaceId: ctx.workspaceId,
           opportunityId: input.opportunityId,
           contactId: input.contactId,
+          conversationId,
           provider: input.provider,
           externalId: input.threadExternalId,
           subject: input.subject,
-          lastMessageAt: input.receivedAt ?? new Date(),
+          lastMessageAt: receivedAt,
         },
       });
 
@@ -94,7 +158,7 @@ export async function POST(request: Request) {
       });
 
       if (existing) {
-        return { thread, message: existing, duplicate: true };
+        return { thread, message: existing, conversationId, duplicate: true };
       }
 
       const message = await tx.emailMessage.create({
@@ -107,7 +171,7 @@ export async function POST(request: Request) {
           toAddresses: input.toAddresses,
           subject: input.subject,
           bodyText: input.bodyText,
-          receivedAt: input.receivedAt ?? new Date(),
+          receivedAt,
         },
       });
 
@@ -121,13 +185,14 @@ export async function POST(request: Request) {
           metadata: {
             provider: input.provider,
             threadId: thread.id,
+            conversationId,
             opportunityId: input.opportunityId,
             contactId: input.contactId,
           },
         },
       });
 
-      return { thread, message, duplicate: false };
+      return { thread, message, conversationId, duplicate: false };
     });
 
     return NextResponse.json({ data: result }, { status: result.duplicate ? 200 : 201 });
