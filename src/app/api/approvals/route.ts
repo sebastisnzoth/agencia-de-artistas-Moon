@@ -6,6 +6,7 @@ import { requireWorkspaceContext } from "@/lib/workspace";
 
 const createApprovalSchema = z.object({
   opportunityId: z.string().min(1).optional(),
+  proposalId: z.string().min(1).optional(),
   actionType: z.string().trim().min(2).max(120),
   summary: z.string().trim().min(2).max(2000),
   payload: z.record(z.string(), z.unknown()).optional(),
@@ -19,6 +20,9 @@ export async function GET(request: Request) {
       include: {
         opportunity: {
           select: { id: true, title: true, status: true },
+        },
+        proposal: {
+          select: { id: true, title: true, version: true, status: true },
         },
       },
       orderBy: [{ status: "asc" }, { requestedAt: "desc" }],
@@ -35,28 +39,43 @@ export async function POST(request: Request) {
     const ctx = await requireWorkspaceContext(request);
     const input = createApprovalSchema.parse(await request.json());
 
-    if (input.opportunityId) {
-      const opportunity = await db.opportunity.findFirst({
-        where: {
-          id: input.opportunityId,
-          workspaceId: ctx.workspaceId,
-        },
-        select: { id: true },
-      });
+    const [opportunity, proposal] = await Promise.all([
+      input.opportunityId
+        ? db.opportunity.findFirst({
+            where: { id: input.opportunityId, workspaceId: ctx.workspaceId },
+            select: { id: true },
+          })
+        : Promise.resolve(null),
+      input.proposalId
+        ? db.proposal.findFirst({
+            where: { id: input.proposalId, workspaceId: ctx.workspaceId },
+            select: { id: true, opportunityId: true },
+          })
+        : Promise.resolve(null),
+    ]);
 
-      if (!opportunity) {
-        return NextResponse.json(
-          { error: "Opportunity not found in this workspace" },
-          { status: 404 },
-        );
-      }
+    if (input.opportunityId && !opportunity) {
+      return NextResponse.json(
+        { error: "Opportunity not found in this workspace" },
+        { status: 404 },
+      );
     }
+
+    if (input.proposalId && !proposal) {
+      return NextResponse.json(
+        { error: "Proposal not found in this workspace" },
+        { status: 404 },
+      );
+    }
+
+    const opportunityId = input.opportunityId ?? proposal?.opportunityId;
 
     const approval = await db.$transaction(async (tx) => {
       const created = await tx.approval.create({
         data: {
           workspaceId: ctx.workspaceId,
-          opportunityId: input.opportunityId,
+          opportunityId,
+          proposalId: input.proposalId,
           actionType: input.actionType,
           summary: input.summary,
           payload: input.payload,
@@ -74,6 +93,7 @@ export async function POST(request: Request) {
           metadata: {
             actionType: created.actionType,
             opportunityId: created.opportunityId,
+            proposalId: created.proposalId,
           },
         },
       });
