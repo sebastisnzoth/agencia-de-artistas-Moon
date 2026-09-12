@@ -47,6 +47,22 @@ const artist = await call("/api/artists", {
   }),
 }, headers);
 
+const pricingPolicy = await call("/api/pricing-policies", {
+  method: "PUT",
+  body: body({
+    artistId: artist.id,
+    currency: "USD",
+    minimumCents: 100000,
+    autonomousMinCents: 120000,
+    targetCents: 150000,
+    autonomousMaxCents: 180000,
+    maximumCents: 220000,
+    notes: "P0 smoke pricing policy",
+  }),
+}, headers);
+
+if (!pricingPolicy.id) throw new Error("Pricing policy must be persisted");
+
 const scoutCandidate = {
   source: "p0-smoke-scout",
   sourceKey: `venue-show-${stamp}`,
@@ -164,6 +180,14 @@ if (classification.classification.intent !== "PRICING") {
   throw new Error(`Expected PRICING reply classification, got ${JSON.stringify(classification)}`);
 }
 
+const priorities = await call(`/api/manager/priorities?artistId=${artist.id}&limit=5`, {}, headers);
+if (!priorities.runId || priorities.priorities.length === 0) {
+  throw new Error(`Manager must generate daily priorities: ${JSON.stringify(priorities)}`);
+}
+if (!priorities.priorities.some((item) => item.opportunityId === opportunityId)) {
+  throw new Error("Replied opportunity should appear in manager priorities");
+}
+
 const conversations = await call(`/api/conversations?opportunityId=${opportunityId}`, {}, headers);
 const conversation = conversations.find((item) => item.id === inbound.conversationId);
 if (!conversation || conversation.status !== "REPLIED") {
@@ -183,6 +207,9 @@ const proposalResult = await call("/api/booking/generate-proposal", {
 
 if (!proposalResult.approval?.id || proposalResult.proposal.status !== "PENDING_APPROVAL") {
   throw new Error(`Generated proposal must require approval: ${JSON.stringify(proposalResult)}`);
+}
+if (proposalResult.pricing?.reason !== "within_autonomous_band" || proposalResult.pricing?.level !== "A1") {
+  throw new Error(`Expected A1 pricing guardrail decision: ${JSON.stringify(proposalResult.pricing)}`);
 }
 
 await call(`/api/approvals/${proposalResult.approval.id}`, {
@@ -223,7 +250,9 @@ console.log(JSON.stringify({
   ok: true,
   workspaceId: bootstrap.workspace.id,
   artistId: artist.id,
+  pricingPolicyId: pricingPolicy.id,
   scoutRunId: scout.runId,
+  managerRunId: priorities.runId,
   opportunityId,
   leadId,
   conversationId: conversation.id,
