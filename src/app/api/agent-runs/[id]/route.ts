@@ -1,4 +1,4 @@
-import { AgentRunStatus } from "@prisma/client";
+import { AgentRunStatus, Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -48,21 +48,23 @@ export async function PATCH(
     }
 
     const now = new Date();
+    const isTerminal =
+      input.status === AgentRunStatus.COMPLETED ||
+      input.status === AgentRunStatus.FAILED;
+
     const run = await db.$transaction(async (tx) => {
       const updated = await tx.agentRun.update({
         where: { id: current.id },
         data: {
           status: input.status,
-          output: input.output,
+          output: input.output as Prisma.InputJsonValue | undefined,
           error: input.error,
-          approvalsNeeded: input.approvalsNeeded,
+          approvalsNeeded: input.approvalsNeeded as Prisma.InputJsonValue | undefined,
           startedAt:
             input.status === AgentRunStatus.RUNNING && !current.startedAt
               ? now
               : current.startedAt,
-          completedAt: [AgentRunStatus.COMPLETED, AgentRunStatus.FAILED].includes(input.status)
-            ? now
-            : null,
+          completedAt: isTerminal ? now : null,
         },
       });
 
