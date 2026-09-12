@@ -1,6 +1,8 @@
+import { verifySessionToken } from "@/lib/session";
+
 export type RequestActor = {
   userId: string;
-  source: "development-header";
+  source: "development-header" | "session-cookie";
 };
 
 export class AuthenticationError extends Error {
@@ -10,27 +12,30 @@ export class AuthenticationError extends Error {
   }
 }
 
-/**
- * Temporary authentication boundary for the P0 foundation.
- *
- * Development can identify a seeded user through x-moon-user-id.
- * Production intentionally fails closed until a real identity provider is wired.
- * This prevents a development shortcut from silently becoming production auth.
- */
-export function resolveRequestActor(request: Request): RequestActor {
-  if (process.env.NODE_ENV === "production") {
-    throw new AuthenticationError(
-      "Production authentication provider is not configured yet",
-    );
+function cookieValue(request: Request, name: string) {
+  const header = request.headers.get("cookie") ?? "";
+  for (const item of header.split(";")) {
+    const [key, ...rest] = item.trim().split("=");
+    if (key === name) return decodeURIComponent(rest.join("="));
+  }
+  return undefined;
+}
+
+export async function resolveRequestActor(request: Request): Promise<RequestActor> {
+  const sessionToken = cookieValue(request, "moon_session");
+  if (sessionToken) {
+    try {
+      const session = await verifySessionToken(sessionToken);
+      return { userId: session.userId, source: "session-cookie" };
+    } catch {
+      throw new AuthenticationError("Invalid or expired session");
+    }
   }
 
-  const userId = request.headers.get("x-moon-user-id")?.trim();
-
-  if (!userId) {
-    throw new AuthenticationError(
-      "Missing x-moon-user-id development identity header",
-    );
+  if (process.env.NODE_ENV !== "production") {
+    const userId = request.headers.get("x-moon-user-id")?.trim();
+    if (userId) return { userId, source: "development-header" };
   }
 
-  return { userId, source: "development-header" };
+  throw new AuthenticationError();
 }
