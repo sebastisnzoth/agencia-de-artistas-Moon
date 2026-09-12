@@ -14,7 +14,7 @@ const requiredEnv = [
 ] as const;
 
 export async function GET() {
-  const missingEnv = requiredEnv.filter((key) => !process.env[key]?.trim());
+  const missingEnvCount = requiredEnv.filter((key) => !process.env[key]?.trim()).length;
   let database = "ok";
 
   try {
@@ -23,16 +23,16 @@ export async function GET() {
     database = "error";
   }
 
-  const ready = missingEnv.length === 0 && database === "ok";
+  const ready = missingEnvCount === 0 && database === "ok";
 
   return NextResponse.json(
     {
       status: ready ? "ready" : "not_ready",
       checks: {
         database,
-        environment: missingEnv.length === 0 ? "ok" : "incomplete",
+        environment: missingEnvCount === 0 ? "ok" : "incomplete",
       },
-      missingConfiguration: missingEnv,
+      missingConfigurationCount: missingEnvCount,
       timestamp: new Date().toISOString(),
     },
     { status: ready ? 200 : 503 },
