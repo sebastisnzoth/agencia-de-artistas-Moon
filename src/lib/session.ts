@@ -37,8 +37,8 @@ export async function verifySessionToken(token: string): Promise<MoonSession> {
   return { userId: payload.sub, email: payload.email };
 }
 
-export async function createOAuthState(input: { workspaceSlug?: string }) {
-  return new SignJWT({ workspaceSlug: input.workspaceSlug })
+export async function createOAuthState(input: { workspaceSlug?: string; nonce: string }) {
+  return new SignJWT({ workspaceSlug: input.workspaceSlug, nonce: input.nonce })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("10m")
@@ -52,7 +52,11 @@ export async function verifyOAuthState(token: string) {
     issuer: "moon-oauth",
     audience: "google",
   });
+  if (typeof payload.nonce !== "string" || payload.nonce.length < 16) {
+    throw new Error("Invalid OAuth state nonce");
+  }
   return {
+    nonce: payload.nonce,
     workspaceSlug:
       typeof payload.workspaceSlug === "string" ? payload.workspaceSlug : undefined,
   };
