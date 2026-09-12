@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "production:check": "node scripts/production-readiness.mjs",
     "postinstall": "prisma generate",
     "smoke:p0": "node scripts/p0-smoke.mjs"
   },
