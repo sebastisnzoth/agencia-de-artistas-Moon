@@ -1,4 +1,4 @@
-import { OpportunityStatus } from "@prisma/client";
+import { LeadStatus, OpportunityStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -34,6 +34,7 @@ export async function GET(request: Request) {
       include: {
         artist: { select: { id: true, stageName: true } },
         contact: { select: { id: true, name: true, organization: true, email: true } },
+        leads: { select: { id: true, status: true, score: true, nextAction: true }, take: 1 },
       },
       orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
     });
@@ -70,30 +71,54 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Contact not found in this workspace" }, { status: 404 });
     }
 
-    const opportunity = await db.$transaction(async (tx) => {
-      const created = await tx.opportunity.create({
+    const result = await db.$transaction(async (tx) => {
+      const opportunity = await tx.opportunity.create({
         data: {
           workspaceId: ctx.workspaceId,
           ...input,
         },
       });
 
-      await tx.auditEvent.create({
+      const lead = await tx.lead.create({
         data: {
           workspaceId: ctx.workspaceId,
-          actorType: "USER",
-          actorId: ctx.userId,
-          action: "opportunity.created",
-          entityType: "Opportunity",
-          entityId: created.id,
-          metadata: { title: created.title, status: created.status },
+          artistId: opportunity.artistId,
+          opportunityId: opportunity.id,
+          contactId: opportunity.contactId,
+          status: LeadStatus.NEW,
+          source: opportunity.source,
+          score: opportunity.score,
+          nextAction: opportunity.nextAction ?? "Qualify lead and prepare contact",
         },
       });
 
-      return created;
+      await tx.auditEvent.createMany({
+        data: [
+          {
+            workspaceId: ctx.workspaceId,
+            actorType: "USER",
+            actorId: ctx.userId,
+            action: "opportunity.created",
+            entityType: "Opportunity",
+            entityId: opportunity.id,
+            metadata: { title: opportunity.title, status: opportunity.status },
+          },
+          {
+            workspaceId: ctx.workspaceId,
+            actorType: "SYSTEM",
+            actorId: ctx.userId,
+            action: "lead.created_from_opportunity",
+            entityType: "Lead",
+            entityId: lead.id,
+            metadata: { opportunityId: opportunity.id, status: lead.status },
+          },
+        ],
+      });
+
+      return { ...opportunity, leadId: lead.id };
     });
 
-    return NextResponse.json({ data: opportunity }, { status: 201 });
+    return NextResponse.json({ data: result }, { status: 201 });
   } catch (error) {
     return apiError(error);
   }
