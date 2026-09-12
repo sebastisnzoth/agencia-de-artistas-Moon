@@ -1,4 +1,4 @@
-import { ApprovalStatus } from "@prisma/client";
+import { ApprovalStatus, ProposalStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -45,6 +45,18 @@ export async function PATCH(
         },
       });
 
+      if (approval.proposalId) {
+        await tx.proposal.update({
+          where: { id: approval.proposalId },
+          data: {
+            status:
+              input.status === ApprovalStatus.APPROVED
+                ? ProposalStatus.APPROVED
+                : ProposalStatus.DRAFT,
+          },
+        });
+      }
+
       await tx.auditEvent.create({
         data: {
           workspaceId: ctx.workspaceId,
@@ -59,6 +71,7 @@ export async function PATCH(
           metadata: {
             actionType: approval.actionType,
             opportunityId: approval.opportunityId,
+            proposalId: approval.proposalId,
           },
         },
       });
