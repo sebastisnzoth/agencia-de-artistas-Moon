@@ -35,25 +35,25 @@ Objetivo actual: dejar el P0 técnicamente validado y listo para una prueba real
 ### IN PROGRESS
 
 - Gate de CI limpio para deploy de prueba.
-  - Corregir warnings/errors de lint restantes.
-  - Confirmar Prisma validate.
-  - Confirmar typecheck.
-  - Confirmar build.
-  - Verificar que el último commit de preparación deje CI verde.
+  - Último fallo conocido: warning `react-hooks/exhaustive-deps` en Artist Workspace.
+  - Corregido en `main` estabilizando callbacks y navegación interna.
+  - CI ampliado con PostgreSQL 16 real y smoke P0 de punta a punta.
+  - Pendiente confirmar en el último run: Prisma validate, lint, typecheck, build, `prisma db push` y smoke P0.
 
 ### NEXT
 
-1. Completar gate CI y dejar `main` verde.
-2. Revisar configuración de deploy de prueba segura.
-3. Preparar proyecto Vercel para MOON sin ejecutar producción irreversible.
-4. Definir/configurar base PostgreSQL persistente de prueba.
-5. Configurar variables requeridas fuera del repo.
-6. Validar `/api/readiness` en entorno desplegado.
-7. Iniciar sesión Google en entorno de prueba.
-8. Crear/cargar Artist Workspace piloto.
-9. Cargar pricing real y límites comerciales.
-10. Ejecutar primera oportunidad/prospecto real controlado.
-11. Medir reply, propuesta, aprobación, cierre y calendarización.
+1. Confirmar CI completamente verde con smoke P0 incluido.
+2. Si aparece un nuevo fallo, diagnosticar, corregir y revalidar sin pedir autorización general.
+3. Revisar configuración de deploy de prueba segura.
+4. Preparar proyecto Vercel para MOON sin ejecutar producción irreversible.
+5. Definir/configurar base PostgreSQL persistente de prueba.
+6. Configurar variables requeridas fuera del repo.
+7. Validar `/api/readiness` en entorno desplegado.
+8. Iniciar sesión Google en entorno de prueba.
+9. Crear/cargar Artist Workspace piloto.
+10. Cargar pricing real y límites comerciales.
+11. Ejecutar primera oportunidad/prospecto real controlado.
+12. Medir reply, propuesta, aprobación, cierre y calendarización.
 
 ### BLOCKED
 
@@ -67,7 +67,10 @@ Estos bloqueos no impiden seguir haciendo hardening, CI, documentación y prepar
 
 - Dashboard operativo y navegación interna actualizada.
 - Artist Workspace + pricing settings UI.
-- Correcciones recientes de lint de navegación y Prisma singleton.
+- Correcciones de lint de navegación, hooks y Prisma singleton.
+- CI con PostgreSQL 16 service.
+- CI con `prisma db push` sobre base efímera.
+- CI con ejecución automática de `npm run smoke:p0` contra app Next en modo development.
 
 ### RELEASED
 
@@ -83,4 +86,4 @@ No pedir al usuario una orden general para continuar. Solo pedir una acción pun
 
 Camino corto a validación:
 
-`CI verde -> preview seguro -> infraestructura real -> OAuth -> workspace piloto -> prospecto real -> propuesta -> aprobación -> deal -> calendar -> métricas`
+`CI verde + smoke P0 -> preview seguro -> infraestructura real -> OAuth -> workspace piloto -> prospecto real -> propuesta -> aprobación -> deal -> calendar -> métricas`
