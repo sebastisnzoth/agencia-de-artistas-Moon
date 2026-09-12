@@ -31,18 +31,69 @@ enum ApprovalStatus {
   EXPIRED
 }
 
+enum ProposalStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum DealStatus {
+  DRAFT
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum AgentRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  BLOCKED
+}
+
+enum AutonomyLevel {
+  A0
+  A1
+  A2
+  A3
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  DRAFT
+  QUEUED
+  SENT
+  RECEIVED
+  FAILED
+}
+
 model Workspace {
-  id            String         @id @default(cuid())
-  name          String
-  slug          String         @unique
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  memberships   Membership[]
-  artists       Artist[]
-  contacts      Contact[]
-  opportunities Opportunity[]
-  approvals     Approval[]
-  auditEvents   AuditEvent[]
+  id              String           @id @default(cuid())
+  name            String
+  slug            String           @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  memberships     Membership[]
+  artists         Artist[]
+  contacts        Contact[]
+  opportunities   Opportunity[]
+  approvals       Approval[]
+  proposals       Proposal[]
+  deals           Deal[]
+  events          Event[]
+  agentRuns       AgentRun[]
+  toolPermissions ToolPermission[]
+  emailThreads    EmailThread[]
+  auditEvents     AuditEvent[]
 }
 
 model User {
@@ -66,18 +117,21 @@ model Membership {
 }
 
 model Artist {
-  id          String        @id @default(cuid())
-  workspaceId String
-  stageName   String
-  legalName   String?
-  bio         String?
-  genres      String[]
-  languages   String[]
-  territories String[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id            String        @id @default(cuid())
+  workspaceId   String
+  stageName     String
+  legalName     String?
+  bio           String?
+  genres        String[]
+  languages     String[]
+  territories   String[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   opportunities Opportunity[]
+  proposals     Proposal[]
+  deals         Deal[]
+  events        Event[]
 
   @@index([workspaceId])
 }
@@ -94,39 +148,69 @@ model Contact {
   updatedAt     DateTime      @updatedAt
   workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   opportunities Opportunity[]
+  emailThreads  EmailThread[]
 
   @@index([workspaceId])
   @@index([workspaceId, email])
 }
 
 model Opportunity {
-  id          String            @id @default(cuid())
-  workspaceId String
-  artistId    String
-  contactId   String?
-  title       String
-  source      String?
-  description String?
-  score       Int?
-  status      OpportunityStatus @default(NEW)
-  valueCents  Int?
-  currency    String?           @default("USD")
-  nextAction  String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  artist      Artist            @relation(fields: [artistId], references: [id], onDelete: Cascade)
-  contact     Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  approvals   Approval[]
+  id           String            @id @default(cuid())
+  workspaceId  String
+  artistId     String
+  contactId    String?
+  title        String
+  source       String?
+  description  String?
+  score        Int?
+  status       OpportunityStatus @default(NEW)
+  valueCents   Int?
+  currency     String?           @default("USD")
+  nextAction   String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  workspace    Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  artist       Artist            @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  contact      Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  approvals    Approval[]
+  proposals    Proposal[]
+  deal         Deal?
+  emailThreads EmailThread[]
 
   @@index([workspaceId, status])
   @@index([artistId])
+}
+
+model Proposal {
+  id            String         @id @default(cuid())
+  workspaceId   String
+  opportunityId String
+  artistId      String
+  version       Int            @default(1)
+  title         String
+  summary       String?
+  terms         Json?
+  amountCents   Int?
+  currency      String         @default("USD")
+  validUntil    DateTime?
+  status        ProposalStatus @default(DRAFT)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  opportunity   Opportunity    @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  artist        Artist         @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  approvals     Approval[]
+  deal          Deal?
+
+  @@unique([opportunityId, version])
+  @@index([workspaceId, status])
 }
 
 model Approval {
   id            String         @id @default(cuid())
   workspaceId   String
   opportunityId String?
+  proposalId    String?
   actionType    String
   summary       String
   payload       Json?
@@ -135,8 +219,128 @@ model Approval {
   resolvedAt    DateTime?
   workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   opportunity   Opportunity?   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  proposal      Proposal?      @relation(fields: [proposalId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, status])
+  @@index([proposalId])
+}
+
+model Deal {
+  id            String     @id @default(cuid())
+  workspaceId   String
+  opportunityId String     @unique
+  proposalId    String?    @unique
+  artistId      String
+  title         String
+  amountCents   Int?
+  currency      String     @default("USD")
+  status        DealStatus @default(DRAFT)
+  confirmedAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  workspace     Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  proposal      Proposal?   @relation(fields: [proposalId], references: [id], onDelete: SetNull)
+  artist        Artist      @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  events        Event[]
+
+  @@index([workspaceId, status])
+}
+
+model Event {
+  id          String    @id @default(cuid())
+  workspaceId String
+  artistId    String
+  dealId      String?
+  title       String
+  startsAt    DateTime
+  endsAt      DateTime?
+  timezone    String    @default("UTC")
+  venue       String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  artist      Artist    @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  deal        Deal?     @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, startsAt])
+  @@index([artistId, startsAt])
+}
+
+model AgentRun {
+  id              String         @id @default(cuid())
+  workspaceId     String
+  artistId        String?
+  agentName       String
+  taskType        String
+  goal            String
+  status          AgentRunStatus @default(QUEUED)
+  autonomyLevel   AutonomyLevel  @default(A0)
+  input           Json?
+  output          Json?
+  error           String?
+  approvalsNeeded Json?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime       @default(now())
+  workspace       Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, createdAt])
+}
+
+model ToolPermission {
+  id            String        @id @default(cuid())
+  workspaceId   String
+  toolName      String
+  enabled       Boolean       @default(false)
+  autonomyLevel AutonomyLevel @default(A0)
+  scopes        String[]
+  constraints   Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, toolName])
+}
+
+model EmailThread {
+  id            String         @id @default(cuid())
+  workspaceId   String
+  opportunityId String?
+  contactId     String?
+  provider      String
+  externalId    String
+  subject       String?
+  lastMessageAt DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  opportunity   Opportunity?   @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  contact       Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  messages      EmailMessage[]
+
+  @@unique([workspaceId, provider, externalId])
+  @@index([workspaceId, lastMessageAt])
+}
+
+model EmailMessage {
+  id          String           @id @default(cuid())
+  threadId    String
+  externalId  String?
+  direction   MessageDirection
+  status      MessageStatus
+  fromAddress String?
+  toAddresses String[]
+  subject     String?
+  bodyText    String?
+  sentAt      DateTime?
+  receivedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  thread      EmailThread      @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
 }
 
 model AuditEvent {
