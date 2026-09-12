@@ -37,7 +37,11 @@ export interface EmailConnector {
     threadExternalId: string;
   }>;
 
-  sendDraft(externalMessageId: string): Promise<{ sentAt: Date }>;
+  sendDraft(externalMessageId: string): Promise<{
+    sentAt: Date;
+    externalMessageId?: string;
+    threadExternalId?: string;
+  }>;
 }
 
 export class EmailConnectorNotConfiguredError extends Error {
