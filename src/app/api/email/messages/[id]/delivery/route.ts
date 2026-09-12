@@ -1,5 +1,6 @@
 import {
   AutonomyLevel,
+  ConversationStatus,
   MessageDirection,
   MessageStatus,
   TaskStatus,
@@ -65,48 +66,58 @@ export async function POST(
     }
 
     const result = await db.$transaction(async (tx) => {
+      const sentAt = input.status === MessageStatus.SENT ? input.sentAt ?? new Date() : message.sentAt;
       const updated = await tx.emailMessage.update({
         where: { id: message.id },
         data: {
           status: input.status,
           externalId: input.externalId ?? message.externalId,
-          sentAt:
-            input.status === MessageStatus.SENT
-              ? input.sentAt ?? new Date()
-              : message.sentAt,
+          sentAt,
         },
       });
 
       let followUpTaskId: string | null = null;
 
-      if (input.status === MessageStatus.SENT && message.thread.opportunity) {
-        const opportunity = message.thread.opportunity;
-        const existingTask = await tx.task.findFirst({
-          where: {
-            workspaceId: ctx.workspaceId,
-            opportunityId: opportunity.id,
-            status: { in: [TaskStatus.OPEN, TaskStatus.IN_PROGRESS] },
-            title: { startsWith: "Follow up email" },
-          },
-        });
-
-        if (!existingTask) {
-          const dueAt = new Date();
-          dueAt.setUTCDate(dueAt.getUTCDate() + input.followUpDays);
-
-          const task = await tx.task.create({
+      if (input.status === MessageStatus.SENT) {
+        if (message.thread.conversationId) {
+          await tx.conversation.update({
+            where: { id: message.thread.conversationId },
             data: {
-              workspaceId: ctx.workspaceId,
-              artistId: opportunity.artistId,
-              opportunityId: opportunity.id,
-              title: `Follow up email · ${opportunity.title}`,
-              notes: `Automatic follow-up after outbound message ${message.id}`,
-              dueAt,
+              status: ConversationStatus.WAITING_FOR_REPLY,
+              lastMessageAt: sentAt ?? new Date(),
             },
           });
-          followUpTaskId = task.id;
-        } else {
-          followUpTaskId = existingTask.id;
+        }
+
+        if (message.thread.opportunity) {
+          const opportunity = message.thread.opportunity;
+          const existingTask = await tx.task.findFirst({
+            where: {
+              workspaceId: ctx.workspaceId,
+              opportunityId: opportunity.id,
+              status: { in: [TaskStatus.OPEN, TaskStatus.IN_PROGRESS] },
+              title: { startsWith: "Follow up email" },
+            },
+          });
+
+          if (!existingTask) {
+            const dueAt = new Date();
+            dueAt.setUTCDate(dueAt.getUTCDate() + input.followUpDays);
+
+            const task = await tx.task.create({
+              data: {
+                workspaceId: ctx.workspaceId,
+                artistId: opportunity.artistId,
+                opportunityId: opportunity.id,
+                title: `Follow up email · ${opportunity.title}`,
+                notes: `Automatic follow-up after outbound message ${message.id}`,
+                dueAt,
+              },
+            });
+            followUpTaskId = task.id;
+          } else {
+            followUpTaskId = existingTask.id;
+          }
         }
       }
 
@@ -124,11 +135,12 @@ export async function POST(
             externalId: input.externalId,
             error: input.error,
             followUpTaskId,
+            conversationId: message.thread.conversationId,
           },
         },
       });
 
-      return { message: updated, followUpTaskId };
+      return { message: updated, followUpTaskId, conversationId: message.thread.conversationId };
     });
 
     return NextResponse.json({ data: result });
