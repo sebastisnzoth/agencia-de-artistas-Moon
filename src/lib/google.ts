@@ -1,4 +1,4 @@
-import { OAuth2Client } from "google-auth-library";
+import { google } from "googleapis";
 
 export const GOOGLE_SCOPES = [
   "openid",
@@ -17,7 +17,7 @@ export function googleOAuthClient() {
   if (!clientId || !clientSecret || !redirectUri) {
     throw new Error("Google OAuth environment is not configured");
   }
-  return new OAuth2Client(clientId, clientSecret, redirectUri);
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
 export function googleAuthorizationUrl(state: string) {
