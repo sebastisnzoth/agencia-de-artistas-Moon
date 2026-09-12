@@ -12,7 +12,7 @@
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "postinstall": "prisma generate",
-    "smoke:p0": "tsx scripts/smoke-p0.ts"
+    "smoke:p0": "node scripts/p0-smoke.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.16.1",
@@ -30,7 +30,6 @@
     "eslint": "^9.35.0",
     "eslint-config-next": "^15.5.3",
     "prisma": "^6.16.1",
-    "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }
 }
