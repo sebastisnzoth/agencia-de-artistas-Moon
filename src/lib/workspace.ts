@@ -18,7 +18,7 @@ export class AuthorizationError extends Error {
 export async function requireWorkspaceContext(
   request: Request,
 ): Promise<WorkspaceContext> {
-  const actor = resolveRequestActor(request);
+  const actor = await resolveRequestActor(request);
   const workspaceId = request.headers.get("x-moon-workspace-id")?.trim();
 
   if (!workspaceId) {
