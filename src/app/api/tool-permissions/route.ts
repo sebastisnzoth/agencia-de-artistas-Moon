@@ -1,4 +1,4 @@
-import { AutonomyLevel, MembershipRole } from "@prisma/client";
+import { AutonomyLevel, MembershipRole, Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -14,7 +14,7 @@ const upsertSchema = z.object({
 });
 
 function requireAdmin(role: MembershipRole) {
-  if (![MembershipRole.OWNER, MembershipRole.ADMIN].includes(role)) {
+  if (role !== MembershipRole.OWNER && role !== MembershipRole.ADMIN) {
     throw new AuthorizationError("Owner or admin role required");
   }
 }
@@ -46,6 +46,8 @@ export async function PUT(request: Request) {
       );
     }
 
+    const constraints = input.constraints as Prisma.InputJsonValue | undefined;
+
     const permission = await db.$transaction(async (tx) => {
       const saved = await tx.toolPermission.upsert({
         where: {
@@ -58,11 +60,15 @@ export async function PUT(request: Request) {
           enabled: input.enabled,
           autonomyLevel: input.autonomyLevel,
           scopes: input.scopes,
-          constraints: input.constraints,
+          constraints,
         },
         create: {
           workspaceId: ctx.workspaceId,
-          ...input,
+          toolName: input.toolName,
+          enabled: input.enabled,
+          autonomyLevel: input.autonomyLevel,
+          scopes: input.scopes,
+          constraints,
         },
       });
 
