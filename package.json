@@ -1,0 +1,27 @@
+{
+  "name": "moon-artist-agency",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MOON autonomous multi-artist agency platform",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.16.1",
+    "next": "^15.5.3",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "zod": "^4.1.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.3",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "prisma": "^6.16.1",
+    "typescript": "^5.9.2"
+  }
+}
