@@ -1,4 +1,4 @@
-import { MembershipRole } from "@prisma/client";
+import { AutonomyLevel, MembershipRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -47,6 +47,43 @@ export async function POST(request: Request) {
         },
       });
 
+      const permissions = [
+        {
+          toolName: "email.ingest",
+          enabled: true,
+          autonomyLevel: AutonomyLevel.A0,
+          scopes: ["read"],
+        },
+        {
+          toolName: "email.send",
+          enabled: true,
+          autonomyLevel: AutonomyLevel.A1,
+          scopes: ["send"],
+        },
+        {
+          toolName: "calendar.write",
+          enabled: true,
+          autonomyLevel: AutonomyLevel.A1,
+          scopes: ["read", "write"],
+        },
+      ];
+
+      for (const permission of permissions) {
+        await tx.toolPermission.upsert({
+          where: {
+            workspaceId_toolName: {
+              workspaceId: workspace.id,
+              toolName: permission.toolName,
+            },
+          },
+          update: permission,
+          create: {
+            workspaceId: workspace.id,
+            ...permission,
+          },
+        });
+      }
+
       await tx.auditEvent.create({
         data: {
           workspaceId: workspace.id,
@@ -55,11 +92,14 @@ export async function POST(request: Request) {
           action: "workspace.dev_bootstrap",
           entityType: "Workspace",
           entityId: workspace.id,
-          metadata: { email: user.email },
+          metadata: {
+            email: user.email,
+            seededTools: permissions.map((permission) => permission.toolName),
+          },
         },
       });
 
-      return { user, workspace };
+      return { user, workspace, permissions };
     });
 
     return NextResponse.json({ data: result }, { status: 201 });
