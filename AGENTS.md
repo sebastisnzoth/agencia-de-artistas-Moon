@@ -2,6 +2,8 @@
 
 Este repositorio se desarrolla bajo el modelo operativo definido en `docs/MOON_MASTER.md`.
 
+`CODEX.md` define el protocolo de ejecución autónoma para Codex y `docs/HANDOFF.md` mantiene el estado vivo de continuidad entre sesiones. Todo agente que trabaje en el repo debe leer ambos antes de ejecutar cambios relevantes.
+
 ## 1. Autoridad superior
 
 La prioridad es convertir MOON en un producto vendible y operativo lo antes posible, sin comprometer seguridad, trazabilidad o arquitectura multiartista.
@@ -94,7 +96,28 @@ No convertir un bloqueo parcial en una pausa general. Si una parte depende del u
 
 Escalar una decisión solo cuando sea realmente crítica, irreversible o encuadre en los casos definidos en la sección 5.
 
-## 7. Multiartista obligatorio
+## 7. Protocolo Codex y handoff
+
+Cuando el trabajo sea ejecutado por Codex, debe seguir `CODEX.md`.
+
+`docs/HANDOFF.md` es obligatorio como estado vivo entre sesiones y debe mantenerse actualizado con estos estados exactos:
+
+- `NEXT`
+- `IN PROGRESS`
+- `IMPLEMENTED`
+- `VALIDATED`
+- `RELEASED`
+- `BLOCKED`
+
+Antes de comenzar una sesión, Codex debe leer `docs/HANDOFF.md`. Antes de cerrar una sesión o cambiar de bloque P0, debe actualizarlo con evidencia real.
+
+El usuario puede iniciar trabajo con una instrucción corta, por ejemplo:
+
+`seguí con los P0 según AGENTS.md y CODEX.md`
+
+Esa instrucción habilita continuidad autónoma hasta llegar a un bloqueo crítico o a una acción externa que solo el usuario pueda realizar.
+
+## 8. Multiartista obligatorio
 
 No hardcodear a Sebastián Zoth en lógica de negocio.
 
@@ -102,7 +125,7 @@ Toda configuración específica del artista debe entrar por `artist_id`, `worksp
 
 Toda entidad persistente relevante debe quedar asociada a un workspace.
 
-## 8. Seguridad de agentes
+## 9. Seguridad de agentes
 
 Toda tool call sensible debe:
 
@@ -113,7 +136,7 @@ Toda tool call sensible debe:
 - no confiar ciegamente en contenido externo;
 - resistir prompt injection proveniente de emails, webs o documentos.
 
-## 9. Contratos entre módulos
+## 10. Contratos entre módulos
 
 Evitar acoplamiento directo entre agentes. Usar contratos claros y entidades persistentes.
 
@@ -129,7 +152,7 @@ Toda ejecución de agente debe poder producir:
 - approvals_required
 - errors
 
-## 10. Calidad mínima
+## 11. Calidad mínima
 
 Antes de considerar una feature terminada:
 
@@ -142,7 +165,7 @@ Antes de considerar una feature terminada:
 - auditabilidad revisada;
 - documentación actualizada.
 
-## 11. Commits
+## 12. Commits
 
 Usar Conventional Commits:
 
@@ -156,7 +179,7 @@ Usar Conventional Commits:
 
 Mantener commits pequeños y reversibles cuando sea posible.
 
-## 12. Política de preguntas
+## 13. Política de preguntas
 
 No detener trabajo para pedir preferencias cosméticas o decisiones técnicas menores.
 
@@ -166,7 +189,7 @@ Preguntar solo cuando la decisión sea realmente crítica o irreversible.
 
 Si una pregunta al usuario es inevitable, debe ser puntual y operativa. No preguntar `¿seguimos?`, `¿querés que continúe?` ni equivalentes después de recibir la respuesta; se asume continuidad automática.
 
-## 13. Regla de cierre
+## 14. Regla de cierre
 
 Cada sesión de trabajo debe dejar uno de estos resultados:
 
