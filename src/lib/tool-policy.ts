@@ -15,11 +15,17 @@ export class ToolPermissionError extends Error {
   }
 }
 
-export async function requireToolPermission(input: {
+export type ToolDecision =
+  | { allowed: true; requiresApproval: false; autonomyLevel: AutonomyLevel }
+  | { allowed: false; requiresApproval: true; autonomyLevel: AutonomyLevel }
+  | { allowed: false; requiresApproval: false; autonomyLevel: AutonomyLevel };
+
+export async function evaluateToolPermission(input: {
   workspaceId: string;
   toolName: string;
   requestedLevel: AutonomyLevel;
-}) {
+  requiredScope?: string;
+}): Promise<ToolDecision> {
   const permission = await db.toolPermission.findUnique({
     where: {
       workspaceId_toolName: {
@@ -33,15 +39,62 @@ export async function requireToolPermission(input: {
     throw new ToolPermissionError(`Tool ${input.toolName} is disabled`);
   }
 
-  if (rank[input.requestedLevel] > rank[permission.autonomyLevel]) {
+  if (input.requiredScope && !permission.scopes.includes(input.requiredScope)) {
     throw new ToolPermissionError(
-      `Tool ${input.toolName} allows up to ${permission.autonomyLevel}, requested ${input.requestedLevel}`,
+      `Tool ${input.toolName} lacks scope ${input.requiredScope}`,
     );
   }
 
   if (input.requestedLevel === AutonomyLevel.A3) {
-    throw new ToolPermissionError("A3 actions cannot execute autonomously");
+    return {
+      allowed: false,
+      requiresApproval: false,
+      autonomyLevel: permission.autonomyLevel,
+    };
   }
 
-  return permission;
+  if (rank[input.requestedLevel] <= rank[permission.autonomyLevel]) {
+    return {
+      allowed: true,
+      requiresApproval: false,
+      autonomyLevel: permission.autonomyLevel,
+    };
+  }
+
+  if (input.requestedLevel === AutonomyLevel.A2) {
+    return {
+      allowed: false,
+      requiresApproval: true,
+      autonomyLevel: permission.autonomyLevel,
+    };
+  }
+
+  return {
+    allowed: false,
+    requiresApproval: false,
+    autonomyLevel: permission.autonomyLevel,
+  };
+}
+
+export async function requireToolPermission(input: {
+  workspaceId: string;
+  toolName: string;
+  requestedLevel: AutonomyLevel;
+  requiredScope?: string;
+}) {
+  const decision = await evaluateToolPermission(input);
+
+  if (!decision.allowed) {
+    if (decision.requiresApproval) {
+      throw new ToolPermissionError(
+        `Tool ${input.toolName} requires approval for ${input.requestedLevel}`,
+      );
+    }
+
+    throw new ToolPermissionError(
+      `Tool ${input.toolName} cannot execute at ${input.requestedLevel}`,
+    );
+  }
+
+  return decision;
 }
