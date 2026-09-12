@@ -369,6 +369,7 @@ model EmailMessage {
   createdAt   DateTime         @default(now())
   thread      EmailThread      @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
+  @@unique([threadId, externalId])
   @@index([threadId, createdAt])
 }
 
