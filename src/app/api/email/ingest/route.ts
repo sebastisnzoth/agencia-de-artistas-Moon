@@ -64,20 +64,65 @@ export async function POST(request: Request) {
     const receivedAt = input.receivedAt ?? new Date();
 
     const result = await db.$transaction(async (tx) => {
-      let conversationId: string | undefined;
+      let thread = await tx.emailThread.upsert({
+        where: {
+          workspaceId_provider_externalId: {
+            workspaceId: ctx.workspaceId,
+            provider: input.provider,
+            externalId: input.threadExternalId,
+          },
+        },
+        update: {
+          opportunityId: input.opportunityId,
+          contactId: input.contactId,
+          subject: input.subject,
+          lastMessageAt: receivedAt,
+        },
+        create: {
+          workspaceId: ctx.workspaceId,
+          opportunityId: input.opportunityId,
+          contactId: input.contactId,
+          provider: input.provider,
+          externalId: input.threadExternalId,
+          subject: input.subject,
+          lastMessageAt: receivedAt,
+        },
+      });
+
+      const existing = await tx.emailMessage.findUnique({
+        where: {
+          threadId_externalId: {
+            threadId: thread.id,
+            externalId: input.messageExternalId,
+          },
+        },
+      });
+
+      if (existing) {
+        return {
+          thread,
+          message: existing,
+          conversationId: thread.conversationId ?? undefined,
+          duplicate: true,
+        };
+      }
+
+      let conversationId = thread.conversationId ?? undefined;
 
       if (opportunity) {
         const effectiveContactId = input.contactId ?? opportunity.contactId ?? undefined;
-        const existingConversation = await tx.conversation.findFirst({
-          where: {
-            workspaceId: ctx.workspaceId,
-            opportunityId: opportunity.id,
-            channel: "email",
-            ...(effectiveContactId ? { contactId: effectiveContactId } : {}),
-            status: { not: ConversationStatus.CLOSED },
-          },
-          orderBy: { updatedAt: "desc" },
-        });
+        const existingConversation = conversationId
+          ? await tx.conversation.findUnique({ where: { id: conversationId } })
+          : await tx.conversation.findFirst({
+              where: {
+                workspaceId: ctx.workspaceId,
+                opportunityId: opportunity.id,
+                channel: "email",
+                ...(effectiveContactId ? { contactId: effectiveContactId } : {}),
+                status: { not: ConversationStatus.CLOSED },
+              },
+              orderBy: { updatedAt: "desc" },
+            });
 
         const conversation = existingConversation
           ? await tx.conversation.update({
@@ -104,6 +149,11 @@ export async function POST(request: Request) {
 
         conversationId = conversation.id;
 
+        thread = await tx.emailThread.update({
+          where: { id: thread.id },
+          data: { conversationId },
+        });
+
         await tx.opportunity.update({
           where: { id: opportunity.id },
           data: {
@@ -119,46 +169,6 @@ export async function POST(request: Request) {
           where: { workspaceId: ctx.workspaceId, opportunityId: opportunity.id },
           data: { status: LeadStatus.CONTACTED, nextAction: "Review inbound reply" },
         });
-      }
-
-      const thread = await tx.emailThread.upsert({
-        where: {
-          workspaceId_provider_externalId: {
-            workspaceId: ctx.workspaceId,
-            provider: input.provider,
-            externalId: input.threadExternalId,
-          },
-        },
-        update: {
-          opportunityId: input.opportunityId,
-          contactId: input.contactId,
-          conversationId,
-          subject: input.subject,
-          lastMessageAt: receivedAt,
-        },
-        create: {
-          workspaceId: ctx.workspaceId,
-          opportunityId: input.opportunityId,
-          contactId: input.contactId,
-          conversationId,
-          provider: input.provider,
-          externalId: input.threadExternalId,
-          subject: input.subject,
-          lastMessageAt: receivedAt,
-        },
-      });
-
-      const existing = await tx.emailMessage.findUnique({
-        where: {
-          threadId_externalId: {
-            threadId: thread.id,
-            externalId: input.messageExternalId,
-          },
-        },
-      });
-
-      if (existing) {
-        return { thread, message: existing, conversationId, duplicate: true };
       }
 
       const message = await tx.emailMessage.create({
