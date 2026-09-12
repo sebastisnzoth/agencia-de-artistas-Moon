@@ -76,6 +76,13 @@ enum MessageStatus {
   FAILED
 }
 
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
 model Workspace {
   id              String           @id @default(cuid())
   name            String
@@ -90,6 +97,7 @@ model Workspace {
   proposals       Proposal[]
   deals           Deal[]
   events          Event[]
+  tasks           Task[]
   agentRuns       AgentRun[]
   toolPermissions ToolPermission[]
   emailThreads    EmailThread[]
@@ -132,6 +140,7 @@ model Artist {
   proposals     Proposal[]
   deals         Deal[]
   events        Event[]
+  tasks         Task[]
 
   @@index([workspaceId])
 }
@@ -176,6 +185,7 @@ model Opportunity {
   proposals    Proposal[]
   deal         Deal?
   emailThreads EmailThread[]
+  tasks        Task[]
 
   @@index([workspaceId, status])
   @@index([artistId])
@@ -226,19 +236,19 @@ model Approval {
 }
 
 model Deal {
-  id            String     @id @default(cuid())
+  id            String      @id @default(cuid())
   workspaceId   String
-  opportunityId String     @unique
-  proposalId    String?    @unique
+  opportunityId String      @unique
+  proposalId    String?     @unique
   artistId      String
   title         String
   amountCents   Int?
-  currency      String     @default("USD")
-  status        DealStatus @default(DRAFT)
+  currency      String      @default("USD")
+  status        DealStatus  @default(DRAFT)
   confirmedAt   DateTime?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  workspace     Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   proposal      Proposal?   @relation(fields: [proposalId], references: [id], onDelete: SetNull)
   artist        Artist      @relation(fields: [artistId], references: [id], onDelete: Cascade)
@@ -266,6 +276,25 @@ model Event {
 
   @@index([workspaceId, startsAt])
   @@index([artistId, startsAt])
+}
+
+model Task {
+  id            String     @id @default(cuid())
+  workspaceId   String
+  artistId      String?
+  opportunityId String?
+  title         String
+  notes         String?
+  dueAt         DateTime?
+  status        TaskStatus @default(OPEN)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  workspace     Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  artist        Artist?    @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status, dueAt])
+  @@index([opportunityId])
 }
 
 model AgentRun {
