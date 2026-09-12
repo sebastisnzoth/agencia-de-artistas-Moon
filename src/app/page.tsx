@@ -18,7 +18,7 @@ export default function HomePage() {
         Centro operativo multiartista para convertir oportunidades en trabajos cerrados con trazabilidad y control.
       </p>
 
-      <div style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap", alignItems: "center" }}>
         <a
           href="/api/auth/google/start"
           style={{
@@ -33,7 +33,9 @@ export default function HomePage() {
         >
           Entrar / conectar Google
         </a>
-        <span style={{ alignSelf: "center", opacity: 0.65 }}>
+        <a href="/dashboard">Abrir dashboard</a>
+        <a href="/settings/integrations">Integraciones</a>
+        <span style={{ opacity: 0.65 }}>
           Gmail + Google Calendar con OAuth y permisos controlados.
         </span>
       </div>
@@ -45,7 +47,7 @@ export default function HomePage() {
             <article key={stage} style={{ border: "1px solid #ddd", borderRadius: 16, padding: 18 }}>
               <small>Paso {index + 1}</small>
               <h3>{stage}</h3>
-              <p style={{ opacity: 0.7 }}>0 activos</p>
+              <p style={{ opacity: 0.7 }}>Controlado por el workspace activo</p>
             </article>
           ))}
         </div>
