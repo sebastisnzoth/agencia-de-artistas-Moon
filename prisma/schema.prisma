@@ -24,6 +24,14 @@ enum OpportunityStatus {
   LOST
 }
 
+enum LeadStatus {
+  NEW
+  QUALIFIED
+  CONTACT_READY
+  CONTACTED
+  DISQUALIFIED
+}
+
 enum ApprovalStatus {
   PENDING
   APPROVED
@@ -84,25 +92,26 @@ enum TaskStatus {
 }
 
 model Workspace {
-  id                 String              @id @default(cuid())
-  name               String
-  slug               String              @unique
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  memberships        Membership[]
-  artists            Artist[]
-  contacts           Contact[]
-  opportunities      Opportunity[]
-  approvals          Approval[]
-  proposals          Proposal[]
-  deals              Deal[]
-  events             Event[]
-  tasks              Task[]
-  agentRuns          AgentRun[]
-  toolPermissions    ToolPermission[]
-  emailThreads       EmailThread[]
+  id                  String               @id @default(cuid())
+  name                String
+  slug                String               @unique
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  memberships         Membership[]
+  artists             Artist[]
+  contacts            Contact[]
+  opportunities       Opportunity[]
+  leads               Lead[]
+  approvals           Approval[]
+  proposals           Proposal[]
+  deals               Deal[]
+  events              Event[]
+  tasks               Task[]
+  agentRuns           AgentRun[]
+  toolPermissions     ToolPermission[]
+  emailThreads        EmailThread[]
   integrationAccounts IntegrationAccount[]
-  auditEvents        AuditEvent[]
+  auditEvents         AuditEvent[]
 }
 
 model User {
@@ -158,6 +167,7 @@ model Artist {
   updatedAt     DateTime      @updatedAt
   workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   opportunities Opportunity[]
+  leads         Lead[]
   proposals     Proposal[]
   deals         Deal[]
   events        Event[]
@@ -178,6 +188,7 @@ model Contact {
   updatedAt     DateTime      @updatedAt
   workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   opportunities Opportunity[]
+  leads         Lead[]
   emailThreads  EmailThread[]
 
   @@index([workspaceId])
@@ -202,6 +213,7 @@ model Opportunity {
   workspace    Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   artist       Artist            @relation(fields: [artistId], references: [id], onDelete: Cascade)
   contact      Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  leads        Lead[]
   approvals    Approval[]
   proposals    Proposal[]
   deal         Deal?
@@ -210,6 +222,30 @@ model Opportunity {
 
   @@index([workspaceId, status])
   @@index([artistId])
+}
+
+model Lead {
+  id            String     @id @default(cuid())
+  workspaceId   String
+  artistId      String
+  opportunityId String
+  contactId     String?
+  status        LeadStatus @default(NEW)
+  source        String?
+  score         Int?
+  notes         String?
+  nextAction    String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  workspace     Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  artist        Artist     @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  contact       Contact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, opportunityId])
+  @@index([workspaceId, status])
+  @@index([artistId, status])
+  @@index([contactId])
 }
 
 model Proposal {
