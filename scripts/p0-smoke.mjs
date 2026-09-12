@@ -170,17 +170,20 @@ if (!conversation || conversation.status !== "REPLIED") {
   throw new Error(`Expected REPLIED conversation, got ${JSON.stringify(conversation)}`);
 }
 
-const proposalResult = await call("/api/proposals", {
+const proposalResult = await call("/api/booking/generate-proposal", {
   method: "POST",
   body: body({
     opportunityId,
-    title: "Live performance proposal",
-    summary: "P0 smoke proposal",
     amountCents: 150000,
     currency: "USD",
-    requestApproval: true,
+    durationMinutes: 120,
+    notes: "Generated automatically from qualified booking context.",
   }),
 }, headers);
+
+if (!proposalResult.approval?.id || proposalResult.proposal.status !== "PENDING_APPROVAL") {
+  throw new Error(`Generated proposal must require approval: ${JSON.stringify(proposalResult)}`);
+}
 
 await call(`/api/approvals/${proposalResult.approval.id}`, {
   method: "PATCH",
@@ -225,6 +228,7 @@ console.log(JSON.stringify({
   leadId,
   conversationId: conversation.id,
   classificationRunId: classification.runId,
+  proposalRunId: proposalResult.runId,
   proposalId: proposalResult.proposal.id,
   dealId: deal.id,
   eventId: event.id,
