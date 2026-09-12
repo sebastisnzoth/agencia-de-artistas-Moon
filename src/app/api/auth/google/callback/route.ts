@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { MembershipRole } from "@prisma/client";
+import { AutonomyLevel, MembershipRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { GOOGLE_SCOPES, googleOAuthClient } from "@/lib/google";
@@ -9,6 +9,15 @@ import { createSessionToken, verifyOAuthState } from "@/lib/session";
 function slugBase(email: string) {
   const raw = email.split("@")[0]?.toLowerCase() || "artist";
   return raw.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "artist";
+}
+
+function cookieValue(request: Request, name: string) {
+  const header = request.headers.get("cookie") ?? "";
+  for (const item of header.split(";")) {
+    const [key, ...rest] = item.trim().split("=");
+    if (key === name) return decodeURIComponent(rest.join("="));
+  }
+  return undefined;
 }
 
 export async function GET(request: Request) {
@@ -21,6 +30,11 @@ export async function GET(request: Request) {
     }
 
     const state = await verifyOAuthState(stateRaw);
+    const nonceCookie = cookieValue(request, "moon_oauth_nonce");
+    if (!nonceCookie || nonceCookie !== state.nonce) {
+      return NextResponse.json({ error: "OAuth state validation failed" }, { status: 400 });
+    }
+
     const client = googleOAuthClient();
     const { tokens } = await client.getToken(code);
     if (!tokens.id_token) {
@@ -99,7 +113,7 @@ export async function GET(request: Request) {
         update: {
           userId: user.id,
           email: user.email,
-          scopes: (tokens.scope?.split(" ").filter(Boolean) ?? existing?.scopes ?? GOOGLE_SCOPES),
+          scopes: tokens.scope?.split(" ").filter(Boolean) ?? existing?.scopes ?? GOOGLE_SCOPES,
           ...(refreshToken ? { encryptedRefreshToken: encryptSecret(refreshToken) } : {}),
         },
         create: {
@@ -112,6 +126,43 @@ export async function GET(request: Request) {
           scopes: tokens.scope?.split(" ").filter(Boolean) ?? GOOGLE_SCOPES,
         },
       });
+
+      const defaults = [
+        {
+          toolName: "email.ingest",
+          enabled: true,
+          autonomyLevel: AutonomyLevel.A0,
+          scopes: ["read"],
+        },
+        {
+          toolName: "email.send",
+          enabled: false,
+          autonomyLevel: AutonomyLevel.A1,
+          scopes: ["send"],
+        },
+        {
+          toolName: "calendar.write",
+          enabled: false,
+          autonomyLevel: AutonomyLevel.A1,
+          scopes: ["read", "write"],
+        },
+      ];
+
+      for (const permission of defaults) {
+        const current = await tx.toolPermission.findUnique({
+          where: {
+            workspaceId_toolName: {
+              workspaceId: workspace.id,
+              toolName: permission.toolName,
+            },
+          },
+        });
+        if (!current) {
+          await tx.toolPermission.create({
+            data: { workspaceId: workspace.id, ...permission },
+          });
+        }
+      }
 
       await tx.auditEvent.create({
         data: {
@@ -144,6 +195,13 @@ export async function GET(request: Request) {
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
+    });
+    response.cookies.set("moon_oauth_nonce", "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/api/auth/google",
+      maxAge: 0,
     });
     return response;
   } catch (error) {
