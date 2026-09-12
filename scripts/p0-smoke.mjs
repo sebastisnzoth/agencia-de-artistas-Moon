@@ -70,6 +70,31 @@ const opportunity = await call("/api/opportunities", {
   }),
 }, headers);
 
+const lead = await call("/api/leads", {
+  method: "POST",
+  body: body({
+    opportunityId: opportunity.id,
+    contactId: contact.id,
+    score: 90,
+    nextAction: "Prepare first contact",
+  }),
+}, headers);
+
+await call(`/api/leads/${lead.id}`, {
+  method: "PATCH",
+  body: body({ status: "QUALIFIED" }),
+}, headers);
+
+await call(`/api/leads/${lead.id}`, {
+  method: "PATCH",
+  body: body({ status: "CONTACT_READY" }),
+}, headers);
+
+await call(`/api/leads/${lead.id}`, {
+  method: "PATCH",
+  body: body({ status: "CONTACTED", nextAction: "Continue conversation" }),
+}, headers);
+
 const proposalResult = await call("/api/proposals", {
   method: "POST",
   body: body({
@@ -154,6 +179,7 @@ console.log(JSON.stringify({
   workspaceId: bootstrap.workspace.id,
   artistId: artist.id,
   opportunityId: opportunity.id,
+  leadId: lead.id,
   proposalId: proposalResult.proposal.id,
   dealId: deal.id,
   eventId: event.id,
