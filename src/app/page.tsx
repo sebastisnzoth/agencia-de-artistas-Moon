@@ -18,6 +18,26 @@ export default function HomePage() {
         Centro operativo multiartista para convertir oportunidades en trabajos cerrados con trazabilidad y control.
       </p>
 
+      <div style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}>
+        <a
+          href="/api/auth/google/start"
+          style={{
+            display: "inline-block",
+            padding: "12px 18px",
+            borderRadius: 12,
+            background: "#111",
+            color: "#fff",
+            textDecoration: "none",
+            fontWeight: 700,
+          }}
+        >
+          Entrar / conectar Google
+        </a>
+        <span style={{ alignSelf: "center", opacity: 0.65 }}>
+          Gmail + Google Calendar con OAuth y permisos controlados.
+        </span>
+      </div>
+
       <section style={{ marginTop: 48 }}>
         <h2>Pipeline P0</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
