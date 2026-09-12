@@ -84,32 +84,34 @@ enum TaskStatus {
 }
 
 model Workspace {
-  id              String           @id @default(cuid())
-  name            String
-  slug            String           @unique
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  memberships     Membership[]
-  artists         Artist[]
-  contacts        Contact[]
-  opportunities   Opportunity[]
-  approvals       Approval[]
-  proposals       Proposal[]
-  deals           Deal[]
-  events          Event[]
-  tasks           Task[]
-  agentRuns       AgentRun[]
-  toolPermissions ToolPermission[]
-  emailThreads    EmailThread[]
-  auditEvents     AuditEvent[]
+  id                 String              @id @default(cuid())
+  name               String
+  slug               String              @unique
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  memberships        Membership[]
+  artists            Artist[]
+  contacts           Contact[]
+  opportunities      Opportunity[]
+  approvals          Approval[]
+  proposals          Proposal[]
+  deals              Deal[]
+  events             Event[]
+  tasks              Task[]
+  agentRuns          AgentRun[]
+  toolPermissions    ToolPermission[]
+  emailThreads       EmailThread[]
+  integrationAccounts IntegrationAccount[]
+  auditEvents        AuditEvent[]
 }
 
 model User {
-  id          String       @id @default(cuid())
-  email       String       @unique
-  name        String?
-  createdAt   DateTime     @default(now())
-  memberships Membership[]
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  name                String?
+  createdAt           DateTime             @default(now())
+  memberships         Membership[]
+  integrationAccounts IntegrationAccount[]
 }
 
 model Membership {
@@ -122,6 +124,25 @@ model Membership {
 
   @@unique([workspaceId, userId])
   @@index([userId])
+}
+
+model IntegrationAccount {
+  id                    String    @id @default(cuid())
+  workspaceId           String
+  userId                String
+  provider              String
+  externalAccountId     String
+  email                 String?
+  encryptedRefreshToken String
+  scopes                String[]
+  connectedAt           DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider, externalAccountId])
+  @@index([workspaceId, provider])
+  @@index([userId, provider])
 }
 
 model Artist {
