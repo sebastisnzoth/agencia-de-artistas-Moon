@@ -2,7 +2,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals.js";
 
 export default defineConfig([
-  ...nextVitals,
+  nextVitals,
   {
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
