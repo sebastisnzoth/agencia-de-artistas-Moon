@@ -37,7 +37,12 @@ const upsertSchema = z.object({
 });
 
 function requireCommercialAdmin(role: MembershipRole) {
-  if (![MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.MANAGER].includes(role)) {
+  const allowed =
+    role === MembershipRole.OWNER ||
+    role === MembershipRole.ADMIN ||
+    role === MembershipRole.MANAGER;
+
+  if (!allowed) {
     throw new AuthorizationError("Owner, admin or manager role required");
   }
 }
