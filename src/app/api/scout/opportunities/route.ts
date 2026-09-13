@@ -65,7 +65,13 @@ export async function POST(request: Request) {
         where: {
           workspaceId: ctx.workspaceId,
           artistId: artist.id,
-          dedupeKey,
+          OR: [
+            ...(candidate.sourceKey ? [{ source: candidate.source, sourceKey: candidate.sourceKey }] : []),
+            ...(candidate.sourceUrl ? [{ sourceUrl: candidate.sourceUrl }] : []),
+            ...(!candidate.sourceKey && !candidate.sourceUrl
+              ? [{ source: candidate.source, title: candidate.title }]
+              : []),
+          ],
         },
         select: { id: true },
       });
@@ -106,8 +112,8 @@ export async function POST(request: Request) {
             contactId,
             title: candidate.title,
             source: candidate.source,
+            sourceKey: candidate.sourceKey,
             sourceUrl: candidate.sourceUrl,
-            dedupeKey,
             description: candidate.description,
             score: candidate.score,
             valueCents: candidate.valueCents,
@@ -141,6 +147,7 @@ export async function POST(request: Request) {
             entityId: opportunity.id,
             metadata: {
               source: candidate.source,
+              sourceKey: candidate.sourceKey,
               sourceUrl: candidate.sourceUrl,
               dedupeKey,
               score: candidate.score,
