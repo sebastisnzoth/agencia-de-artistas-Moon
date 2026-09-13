@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     if (!opportunity) {
       return NextResponse.json({ error: "Opportunity not found" }, { status: 404 });
     }
-    if ([OpportunityStatus.WON, OpportunityStatus.LOST].includes(opportunity.status)) {
+    if (opportunity.status === OpportunityStatus.WON || opportunity.status === OpportunityStatus.LOST) {
       return NextResponse.json({ error: "Terminal opportunity cannot receive a new proposal" }, { status: 409 });
     }
 
